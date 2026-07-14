@@ -1,0 +1,130 @@
+# ddez — Design
+
+## Vision
+
+k9s for Datadog: a keyboard-driven terminal cockpit for humans doing
+operations and incident response. Not a scripting CLI (that's
+[pup](https://github.com/DataDog/pup)), not a dashboard replacement — a fast
+navigator with drill-down, deep links, and k9s muscle-memory.
+
+## Why the k9s analogy breaks — and what we do about it
+
+k9s can poll the Kubernetes API every 2 seconds because it is local, free and
+has watch semantics. Datadog's API has neither:
+
+| Endpoint family | Limit (per org, per hour) |
+|---|---|
+| Timeseries query | 1,600 |
+| Log search | 300 |
+| Metric retrieval | 100 |
+
+Consequences baked into the architecture:
+
+1. **Snapshot + cache, not watch.** Every fetch lands in a TTL cache keyed by
+   `resource|query` (`internal/data/cache.go`). Switching views re-renders
+   from cache; only TTL expiry, an explicit `ctrl-r`, or a new server query
+   hits the API.
+2. **Auto-refresh is opt-in per resource.** Monitors/incidents (cheap listing
+   endpoints) refresh on a timer; logs, SLOs and dashboards are on-demand.
+3. **Budget visibility.** The live provider records `X-RateLimit-*` headers
+   from every response and the header widget displays remaining headroom.
+   A TUI on five laptops shares one org budget with Terraform providers and
+   Grafana — the user must be able to see what the tool is spending.
+4. **Stale-tolerant.** On fetch error with a cached copy, ddez serves the stale
+   rows and surfaces the error, instead of blanking the screen mid-incident.
+
+## Architecture
+
+```
+main.go                 flags, provider wiring
+internal/data/
+  types.go              Row, Resource registry (columns, TTLs, aliases), Provider iface
+  cache.go              TTL cache + stale-on-error, the rate-limit defence
+  live.go               datadog-api-client-go v2; rate-limit header tracking
+  demo.go               offline provider with plausible SRE data (--demo)
+internal/ui/
+  app.go                tview shell: header, table, prompt, status, keys
+  app_test.go           headless end-to-end smoke test (tcell SimulationScreen)
+  screendump_test.go    README screenshot generator (DDEZ_DUMP=1)
+```
+
+Decisions:
+
+- **Go + tview/tcell** — the exact widget stack k9s uses, so k9s UX parity
+  (command mode, bordered tables, header hints) is the default, not an
+  imitation. Official `datadog-api-client-go` covers everything we need.
+- **`Provider` interface with a demo implementation** — the TUI is fully
+  exercisable and testable without credentials, and the smoke test drives the
+  real app end-to-end on a simulation screen in CI.
+- **Read-only POC.** The only "write" is opening the browser. First write op
+  candidate: mute/downtime a monitor behind a confirm modal.
+- **Auth = named contexts with env-indirected secrets** (see
+  [ARCHITECTURE.md](ARCHITECTURE.md)). The config file names *which env
+  vars* hold each org's keys; plaintext keys in the file are rejected at
+  parse time — dotfiles get committed. With no config file, the classic
+  `DD_API_KEY`/`DD_APP_KEY`/`DD_SITE` vars form an implicit `default`
+  context. OAuth2+PKCE and OS-keychain storage (what pup does) are the
+  right end state but wrong first battle.
+- **Contexts, not auto-detection, for multi-org.** Org layouts are too
+  heterogeneous across companies (org-per-env, org-per-BU, single org) to
+  infer; kubeconfig-style named contexts is the only shape that fits all.
+
+## UX parity map (k9s → ddez)
+
+| k9s | ddez |
+|---|---|
+| `:pods`, `:deploy` | `:monitors`, `:incidents`, `:slos`, `:logs`, `:dashboards` |
+| `/` filter | `/` — client-side filter; in Logs, a server-side Datadog query |
+| `enter` describe/drill | `enter` detail view (full JSON of the object) |
+| `esc` back (page stack pop) | `esc` pops the navigation stack (view, filter, selection restored) |
+| `:ctx` cluster contexts | `:ctx` Datadog org contexts (hard boundary: cache/budget/history dropped) |
+| header: context, version, CPU/MEM | header: mode, site, view, cache age, **API budget** |
+| resource-specific hotkeys | monitors: `0`–`4` state quick filters |
+| live watch | TTL cache + explicit `ctrl-r` (deliberate — see above) |
+
+## Roadmap
+
+1. **Drill-down navigation** — the real k9s killer feature: monitor → its
+   triggering logs (`enter` on an Alert pre-fills the log query from the
+   monitor's scope), incident → linked monitors/logs.
+2. Monitor mute/unmute via Downtimes API behind a confirm modal.
+3. Pagination + hardened incidents field mapping (pre-first-live-run work).
+4. Sparkline metric previews in the detail view (braille rendering).
+5. Live tail emulation for logs: bounded polling loop with visible budget
+   spend (there is no public streaming API).
+6. OAuth2 + PKCE device flow (the pup approach) as a keys-free alternative.
+7. Per-resource TTL overrides and skins in the config file.
+
+Done: ~~multi-org contexts + config file~~ (`:ctx`, env-indirected secrets),
+~~esc navigation stack~~, ~~in-app context add/delete with OS-keychain
+storage~~ (`:ctx` → `a` / `ctrl-d`).
+
+## Project policy (decided 2026-07-14)
+
+- **Visibility**: public on GitHub (`Cesarsk/ddez`) from the first push, no
+  announcement until live mode is validated.
+- **License**: Apache-2.0 (matches k9s and pup; explicit patent grant).
+- **CI**: GitHub Actions on every push/PR — gofmt, vet, test, build on
+  ubuntu + macos. No golangci-lint until contributors arrive.
+- **Releases**: goreleaser on `v*` tags → GitHub Releases + Homebrew
+  formula in `Cesarsk/homebrew-tap` (`brew install cesarsk/tap/ddez`).
+  Targets: darwin/linux, amd64/arm64 only — no Windows. Prereqs: tap repo
+  + `TAP_GITHUB_TOKEN` secret.
+- **Versioning**: no tag until live mode is verified against a real org.
+  `v0.1.0` = all five views verified live + keychain add works. `v1.0` =
+  config schema frozen (breaking YAML changes need migration), pagination,
+  hardened incidents mapping, weeks of real incident use. Feature breadth
+  is not a 1.0 gate; stability is.
+- **Contribution model**: solo direct-push to main while single-maintainer;
+  CI on every push keeps main honest. Contributor scaffolding exists from
+  day one (CONTRIBUTING.md → AGENTS.md, issue/PR templates, SECURITY.md).
+  Branch protection (PRs + green CI required) turns on when a second
+  regular contributor appears.
+- **Vocabulary**: [CONTEXT.md](../CONTEXT.md) is the canonical glossary.
+
+## Non-goals
+
+- Dashboard/graph rendering fidelity — deep-link to the browser instead.
+- Wrapping all 33 Datadog products. Incident-response surface only; breadth
+  is what pup is for.
+- Config mutation (monitor definitions, dashboards JSON) in early versions.
