@@ -1,0 +1,32 @@
+version: 2
+project_name: ddez
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos: [darwin, linux] # terminal tool: mac + linux, like k9s in spirit
+    goarch: [amd64, arm64]
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+
+archives:
+  - formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  use: github
+
+brews:
+  - name: ddez
+    homepage: https://github.com/Cesarsk/ddez
+    description: "k9s-style terminal UI for Datadog — monitors, incidents, SLOs, logs and dashboards with k9s muscle memory"
+    license: Apache-2.0
+    repository:
+      owner: Cesarsk
+      name: homebrew-tap
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
+    test: |
+      assert_match "ddez", shell_output("#{bin}/ddez --version")

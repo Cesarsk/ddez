@@ -1,0 +1,69 @@
+package data
+
+import (
+	"context"
+	"sync"
+	"time"
+)
+
+// Cached wraps a Provider with a per-resource TTL cache. This is the core
+// defence against Datadog's per-organization API rate limits: repeated
+// navigation between views is served from cache, and only an explicit
+// refresh (Ctrl-R) or TTL expiry hits the API.
+type Cached struct {
+	p       Provider
+	mu      sync.Mutex
+	entries map[string]*entry
+}
+
+type entry struct {
+	rows []Row
+	at   time.Time
+}
+
+func NewCached(p Provider) *Cached {
+	return &Cached{p: p, entries: map[string]*entry{}}
+}
+
+func (c *Cached) Mode() string     { return c.p.Mode() }
+func (c *Cached) Site() string     { return c.p.Site() }
+func (c *Cached) Budget() []string { return c.p.Budget() }
+
+// Fetch returns rows for a resource, from cache when fresh.
+// It reports the fetch time and whether the result came from cache.
+func (c *Cached) Fetch(ctx context.Context, res Resource, query string, force bool) ([]Row, time.Time, bool, error) {
+	key := res.Key + "|" + query
+
+	c.mu.Lock()
+	e, ok := c.entries[key]
+	c.mu.Unlock()
+
+	if ok && !force && time.Since(e.at) < res.TTL {
+		return e.rows, e.at, true, nil
+	}
+
+	rows, err := c.p.Fetch(ctx, res.Key, query)
+	if err != nil {
+		// Serve stale data alongside the error if we have any.
+		if ok {
+			return e.rows, e.at, true, err
+		}
+		return nil, time.Time{}, false, err
+	}
+
+	now := time.Now()
+	c.mu.Lock()
+	c.entries[key] = &entry{rows: rows, at: now}
+	c.mu.Unlock()
+	return rows, now, false, nil
+}
+
+// Age returns how old the cached entry for a resource/query is.
+func (c *Cached) Age(res Resource, query string) (time.Duration, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if e, ok := c.entries[res.Key+"|"+query]; ok {
+		return time.Since(e.at), true
+	}
+	return 0, false
+}
