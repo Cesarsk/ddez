@@ -100,41 +100,75 @@ completion (facet API, rate-limited) is a possible later opt-in mode.
 
 ## Roadmap
 
-Auth (its own milestone — the biggest single feature):
-1. **OAuth2 login**, pup-style: `ike auth login --site --subdomain --org`.
-   Native OAuth2 + PKCE with dynamic client registration, a local callback
-   server, token refresh, and OS-keychain storage — mirroring how pup does
-   it. (Checked: pup has no non-interactive "print token" command, so ike
-   can't cleanly borrow pup's tokens; native is the honest path.) Interim
-   that already works: paste a token via `token-env`/keychain token auth,
-   but access tokens expire ~1h → rotation pain. Spike first: confirm
-   Datadog's DCR endpoint is usable from a Go client.
+### Auth — its own milestone, the biggest single feature
 
-Near-term (rest of Tier 2):
-2. **APM services** view (`:services`) — needs metrics for health/latency/
-   error-rate to be worth it (service-definitions alone is thin); enter → traces.
-3. Live log tail (bounded polling) + log → surrounding-context (±N min, same host).
-4. Remaining incident verbs: timeline note, assign commander (severity ships now
-   via `v`; both remaining verbs are add-a-note / relationship writes, not
-   single-value field patches, so they need their own request shapes).
+1. **OAuth2 login, pup-style**: `ike auth login --site <site> --subdomain <sub> --org <org>`.
+   - **The flags map onto a named context.** `auth login` creates-or-updates a
+     context (target it with `--context <name>`, defaulting to the `--org`
+     value) and persists `{site, subdomain, org, keychain: true}` to the config
+     — the *same* context model as the `:ctx` add form, so CLI login and
+     manual contexts converge. `subdomain` already exists (web deep-links);
+     `org` becomes a **new `Context` field** (label + used in the authorize
+     flow). You pick which context you're authenticating *to*.
+   - **Mechanics**: native OAuth2 + PKCE + dynamic client registration, a local
+     callback server, token refresh, OS-keychain storage per context —
+     mirroring pup (`pup auth login --site datadoghq.eu --subdomain <sub>
+     --org <env>`). Checked: pup has no non-interactive "print token" command,
+     so ike can't borrow pup's tokens; native is the honest path.
+   - After login, `:ctx` lists the new context and switching uses the keychain
+     token; refresh removes the ~1h rotation pain of the interim paste-a-token
+     path (`token-env`/keychain token auth keeps working meanwhile).
+   - **Spike first**: confirm Datadog's DCR endpoint is usable from a Go client
+     before committing to the full flow.
 
-UX polish (rest of Tier 3 — bigger / config-schema changes):
-6. Saved queries per context; column customization. A dedicated command
-   palette is largely covered by `:`-autocomplete already.
+### Near-term (rest of Tier 2)
 
-Longer-term:
-7. Set/replace credentials on an existing context (`:ctx`, token rotation ~1h)
-   — needs a fresh key (`x` is now cancel-downtime on the downtimes view).
-8. Bulk select + act (mute N monitors / resolve N incidents) behind one confirm.
-9. Hardened incidents field mapping (union types; verify against live org).
-10. First Homebrew release: create `Cesarsk/homebrew-tap` + `TAP_GITHUB_TOKEN`
-    secret, then `git tag v0.1.0` (goreleaser + release workflow already built).
-11. Per-resource TTL overrides and skins in the config file.
+2. **APM services** `:services` — design settled, API verified against
+   `datadog-api-client-go v2.62.0`:
+   - Source: `SpansApi.AggregateSpans`, **one call**, `group_by service` over a
+     time window (`APMApi.GetServiceList` returns names only — too thin).
+     Error rate via a **second** aggregate filtered to errors (errors/total).
+     TTL-cached, **no** auto-refresh (same discipline as logs/traces).
+   - Columns: `SERVICE | REQUESTS | ERR% | P95 | ENV`.
+   - `enter` → traces filtered `service:<name>` (deliberate deviation from
+     enter=detail — drills into the debugging loop); `/` filters name;
+     `1`–`5` sets the time window.
+3. **Live log tail** (bounded polling + backoff — must not blow the 300/h logs
+   budget) **+ log → surrounding-context** (±N min, same host; needs
+   absolute-time-range plumbing through the fetch path).
+4. **Remaining incident verbs**: timeline note, assign commander. Unlike state
+   and severity (single-value field patches, shipped via `r`/`v`), these are
+   add-a-note / relationship writes needing their own request shapes.
+   Confirm-gated like every other write.
 
-Deferred deliberately (unverifiable-write-heavy or lower ROI than the above):
-richer incident write verbs and bulk actions above are **write** paths that
-cannot be tested from the authoring sandbox — they wait on live dev-org
-validation of the mute and incident-state writes already shipped.
+### Tech-debt / simplification
+
+5. **Trace view via `APMTraceApi.GetTraceByID`** — this endpoint exists in
+   v2.62.0, contradicting the "no get-trace-by-id endpoint" assumption the
+   current waterfall is built on (it reconstructs a trace from `trace_id:` span
+   search + `parent_id` linking). Switching to the direct call simplifies
+   `buildTrace`; verify coverage/retention behaviour vs span-search first, as
+   the reconstruction may still be the better fallback.
+
+### UX polish (Tier 3 — config-schema changes)
+
+6. Saved queries per context; column customization. (`:`-autocomplete already
+   covers most of a command palette.)
+7. Per-resource TTL overrides and skins in the config file.
+
+### Longer-term
+
+8. **Token rotation** on an existing context — folds into `ike auth login
+   --context <existing>` (re-auth updates the keychain token in place), so no
+   separate key/flow is needed once auth login lands.
+9. Bulk select + act (mute N monitors / resolve N incidents) behind one confirm.
+10. Hardened incidents field mapping (union types; verify against a live org).
+
+### Deferred deliberately
+
+Write-heavy verbs (bulk actions, the remaining incident writes) can't be tested
+from the authoring sandbox — they wait on live dev-org validation of the writes
+already shipped (incident state/severity, monitor mute, cancel downtime).
 
 Done: ~~multi-org contexts + config file~~ (`:ctx`, env-indirected secrets),
 ~~esc navigation stack~~, ~~in-app context add/delete with OS-keychain
@@ -156,7 +190,9 @@ in the prompt), ~~429 rate-limit backoff~~ (auto-pauses auto-refresh),
 ~~double-ctrl-c quit~~, ~~unified trace timeline~~ (waterfall + all-services
 logs chronological), ~~downtimes list~~ (`:downtimes`), ~~downtimes cancel~~
 (`x`, confirm-gated), ~~incident severity change~~ (`v`, SEV-1…SEV-5,
-confirm-gated).
+confirm-gated), ~~first Homebrew release~~ (`v0.1.0`+`v0.1.1`, `brew install
+cesarsk/tap/ike`; goreleaser builds serialized to avoid runner OOM, formula in
+`Formula/`).
 
 ## Traces & correlation
 
