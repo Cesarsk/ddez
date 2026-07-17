@@ -1,0 +1,85 @@
+package ui
+
+import (
+	"strings"
+
+	"github.com/gdamore/tcell/v2"
+)
+
+// Theme is a named colour palette for the TUI chrome. The structural colours
+// drive the tview widgets (borders, titles, selection highlight, form fields);
+// Accent/Key/Dim are tview dynamic-colour tag names woven into the header,
+// hint bar and help text. Semantic colours (alert red, ok green, budget
+// health) are deliberately NOT themed — a muted alert must still read as red.
+type Theme struct {
+	Name     string
+	Border   tcell.Color
+	Title    tcell.Color
+	SelectBg tcell.Color
+	SelectFg tcell.Color
+	FieldBg  tcell.Color
+	FieldFg  tcell.Color
+	Label    tcell.Color
+	Button   tcell.Color
+	Accent   string // section headers / labels in dynamic text (default "orange")
+	Key      string // key names in dynamic text (default "aqua")
+	Dim      string // secondary notes in dynamic text (default "gray")
+}
+
+// themes are the built-in palettes. "default" preserves the original look.
+var themes = map[string]Theme{
+	"default": {
+		Name: "default", Border: tcell.ColorDodgerBlue, Title: tcell.ColorOrange,
+		SelectBg: tcell.ColorDarkSlateGray, SelectFg: tcell.ColorWhite,
+		FieldBg: tcell.ColorBlack, FieldFg: tcell.ColorAqua,
+		Label: tcell.ColorOrange, Button: tcell.ColorDodgerBlue,
+		Accent: "orange", Key: "aqua", Dim: "gray",
+	},
+	"mono": {
+		Name: "mono", Border: tcell.ColorWhite, Title: tcell.ColorWhite,
+		SelectBg: tcell.ColorGray, SelectFg: tcell.ColorWhite,
+		FieldBg: tcell.ColorBlack, FieldFg: tcell.ColorWhite,
+		Label: tcell.ColorWhite, Button: tcell.ColorGray,
+		Accent: "white", Key: "white", Dim: "gray",
+	},
+	"nord": {
+		Name: "nord", Border: tcell.ColorSteelBlue, Title: tcell.ColorLightCyan,
+		SelectBg: tcell.ColorDarkSlateBlue, SelectFg: tcell.ColorWhite,
+		FieldBg: tcell.ColorBlack, FieldFg: tcell.ColorLightCyan,
+		Label: tcell.ColorLightCyan, Button: tcell.ColorSteelBlue,
+		Accent: "#88c0d0", Key: "#a3be8c", Dim: "gray",
+	},
+	"solarized": {
+		Name: "solarized", Border: tcell.ColorDarkCyan, Title: tcell.ColorGoldenrod,
+		SelectBg: tcell.ColorDarkSlateGray, SelectFg: tcell.ColorWhite,
+		FieldBg: tcell.ColorBlack, FieldFg: tcell.ColorDarkCyan,
+		Label: tcell.ColorGoldenrod, Button: tcell.ColorDarkCyan,
+		Accent: "#b58900", Key: "#2aa198", Dim: "#657b83",
+	},
+}
+
+// ThemeNames lists the built-in theme names (for docs/validation).
+var ThemeNames = []string{"default", "mono", "nord", "solarized"}
+
+// ResolveTheme returns the named palette, or "default" if name is empty or
+// unknown — an unrecognised theme should never break the UI.
+func ResolveTheme(name string) Theme {
+	if t, ok := themes[strings.ToLower(strings.TrimSpace(name))]; ok {
+		return t
+	}
+	return themes["default"]
+}
+
+// recolor rewrites the canonical dynamic-colour tags used when building header,
+// hint and help strings ([orange]/[aqua]/[gray]) into this theme's tag names,
+// so themed text matches the structural colours. A no-op for the default theme.
+func (t Theme) recolor(s string) string {
+	if t.Accent == "orange" && t.Key == "aqua" && t.Dim == "gray" {
+		return s
+	}
+	return strings.NewReplacer(
+		"[orange]", "["+t.Accent+"]",
+		"[aqua]", "["+t.Key+"]",
+		"[gray]", "["+t.Dim+"]",
+	).Replace(s)
+}

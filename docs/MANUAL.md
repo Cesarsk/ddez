@@ -307,6 +307,7 @@ ttl-overrides:                 # optional; per-view cache TTL (Go durations)
 columns:                       # optional; choose/reorder columns per view
   monitors: [STATE, NAME, TAGS]
   logs: [TIME, SERVICE, MESSAGE]
+theme: default                 # optional; default | mono | nord | solarized
 contexts:
   dev:
     site: datadoghq.eu
@@ -330,6 +331,7 @@ contexts:
 | `refresh-interval` | Auto-refresh cadence, e.g. `45s`, `0` to disable. |
 | `ttl-overrides.<view>` | Custom cache TTL per view (`logs`, `monitors`, …), Go duration; overrides the built-in default. |
 | `columns.<view>` | Column subset/order to display for a view, by name (below). Unknown names ignored; empty/all-unknown shows all. Display-only — sort/filter still see every column. |
+| `theme` | TUI colour palette: `default`, `mono`, `nord`, or `solarized`. Recolours the chrome (borders, titles, selection, accents) — status colours (alert red, ok green) are never themed. |
 
 **Available column names per view** (for `columns:`):
 

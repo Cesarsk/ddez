@@ -64,6 +64,8 @@ type Options struct {
 	// Columns maps a resource key to the display column subset/order (by
 	// name) from the config file (empty = show all columns in registry order).
 	Columns map[string][]string
+	// Theme names a built-in colour palette (empty/unknown = "default").
+	Theme string
 }
 
 // ctxResource is the :ctx pseudo-resource. It is rendered like any table but
@@ -81,6 +83,7 @@ type App struct {
 	*tview.Application
 	provider     *data.Cached
 	opts         Options
+	theme        Theme
 	ctxInfos     []ContextInfo
 	current      string // active context name
 	refreshEvery time.Duration
@@ -179,6 +182,7 @@ func New(o Options) (*App, error) {
 }
 
 func (a *App) build() {
+	a.theme = ResolveTheme(a.opts.Theme)
 	a.infoTV = tview.NewTextView().SetDynamicColors(true)
 	a.hintTV = tview.NewTextView().SetDynamicColors(true).SetTextAlign(tview.AlignRight)
 
@@ -190,15 +194,15 @@ func (a *App) build() {
 		SetFixed(1, 0).
 		SetSelectable(true, false)
 	a.table.SetBorder(true)
-	a.table.SetBorderColor(tcell.ColorDodgerBlue)
-	a.table.SetTitleColor(tcell.ColorOrange)
-	a.table.SetSelectedStyle(tcell.StyleDefault.Background(tcell.ColorDarkSlateGray).Foreground(tcell.ColorWhite))
+	a.table.SetBorderColor(a.theme.Border)
+	a.table.SetTitleColor(a.theme.Title)
+	a.table.SetSelectedStyle(tcell.StyleDefault.Background(a.theme.SelectBg).Foreground(a.theme.SelectFg))
 	a.table.SetSelectedFunc(func(row, _ int) { a.openDetail(row) })
 
 	a.prompt = tview.NewInputField().
-		SetLabelColor(tcell.ColorOrange).
-		SetFieldBackgroundColor(tcell.ColorBlack).
-		SetFieldTextColor(tcell.ColorAqua)
+		SetLabelColor(a.theme.Label).
+		SetFieldBackgroundColor(a.theme.FieldBg).
+		SetFieldTextColor(a.theme.FieldFg)
 	a.prompt.SetDoneFunc(a.promptDone)
 	a.prompt.SetChangedFunc(func(text string) {
 		if a.promptM == promptFilter && !a.res.ServerQuery {
@@ -248,32 +252,32 @@ func (a *App) build() {
 
 	a.detail = tview.NewTextView().SetWrap(false)
 	a.detail.SetBorder(true)
-	a.detail.SetBorderColor(tcell.ColorDodgerBlue)
-	a.detail.SetTitleColor(tcell.ColorOrange)
+	a.detail.SetBorderColor(a.theme.Border)
+	a.detail.SetTitleColor(a.theme.Title)
 
 	a.dash = tview.NewTextView().SetDynamicColors(true).SetWrap(false)
 	a.dash.SetBorder(true)
-	a.dash.SetBorderColor(tcell.ColorDodgerBlue)
-	a.dash.SetTitleColor(tcell.ColorOrange)
+	a.dash.SetBorderColor(a.theme.Border)
+	a.dash.SetTitleColor(a.theme.Title)
 
 	a.trace = tview.NewTextView().SetDynamicColors(true).SetWrap(false)
 	a.trace.SetBorder(true)
-	a.trace.SetBorderColor(tcell.ColorDodgerBlue)
-	a.trace.SetTitleColor(tcell.ColorOrange)
+	a.trace.SetBorderColor(a.theme.Border)
+	a.trace.SetTitleColor(a.theme.Title)
 
 	a.patterns = tview.NewTextView().SetDynamicColors(true).SetWrap(false)
 	a.patterns.SetBorder(true)
-	a.patterns.SetBorderColor(tcell.ColorDodgerBlue)
-	a.patterns.SetTitleColor(tcell.ColorOrange)
+	a.patterns.SetBorderColor(a.theme.Border)
+	a.patterns.SetTitleColor(a.theme.Title)
 
 	a.ctxForm = tview.NewForm()
 	a.ctxForm.SetBorder(true)
 	a.ctxForm.SetTitle(" Add context ")
-	a.ctxForm.SetTitleColor(tcell.ColorOrange)
-	a.ctxForm.SetBorderColor(tcell.ColorDodgerBlue)
-	a.ctxForm.SetFieldBackgroundColor(tcell.ColorDarkSlateGray)
-	a.ctxForm.SetButtonBackgroundColor(tcell.ColorDodgerBlue)
-	a.ctxForm.SetLabelColor(tcell.ColorOrange)
+	a.ctxForm.SetTitleColor(a.theme.Title)
+	a.ctxForm.SetBorderColor(a.theme.Border)
+	a.ctxForm.SetFieldBackgroundColor(a.theme.FieldBg)
+	a.ctxForm.SetButtonBackgroundColor(a.theme.Button)
+	a.ctxForm.SetLabelColor(a.theme.Label)
 
 	a.confirm = tview.NewModal()
 
@@ -282,8 +286,8 @@ func (a *App) build() {
 	// rejects are visible right where the user is looking (not only in the
 	// status bar at the bottom).
 	guidance := tview.NewTextView().SetDynamicColors(true).SetWrap(true)
-	guidance.SetBorder(true).SetTitle(" Guidance ").SetTitleColor(tcell.ColorOrange)
-	guidance.SetBorderColor(tcell.ColorDodgerBlue)
+	guidance.SetBorder(true).SetTitle(" Guidance ").SetTitleColor(a.theme.Title)
+	guidance.SetBorderColor(a.theme.Border)
 	guidance.SetText(ctxFormGuidance)
 	a.formErr = tview.NewTextView().SetDynamicColors(true)
 	ctxFormFlex := tview.NewFlex().SetDirection(tview.FlexRow).
@@ -379,13 +383,13 @@ func (a *App) setHints() {
 			lines = append(lines, "[gray]<s>sort <S>reverse")
 		}
 	}
-	a.hintTV.SetText(strings.Join(lines, "\n"))
+	a.hintTV.SetText(a.theme.recolor(strings.Join(lines, "\n")))
 }
 
 func (a *App) buildHelp() tview.Primitive {
 	tv := tview.NewTextView().SetDynamicColors(true)
-	tv.SetBorder(true).SetTitle(" Help ").SetTitleColor(tcell.ColorOrange)
-	fmt.Fprint(tv, `
+	tv.SetBorder(true).SetTitle(" Help ").SetTitleColor(a.theme.Title)
+	fmt.Fprint(tv, a.theme.recolor(`
  [orange]NAVIGATION
    [aqua]:<resource>[white]   switch view: monitors incidents slos logs traces events
                  downtimes dashboards (aliases: mon inc s l tr ev dt d) — or :ctx
@@ -432,7 +436,7 @@ func (a *App) buildHelp() tview.Primitive {
 
  [gray]Views auto-refresh only where cheap (monitors, incidents), else cached per TTL.
  [gray]The Budget header shows Datadog X-RateLimit headroom; a 429 auto-pauses refresh.
-`)
+`))
 	return tv
 }
 
@@ -2125,9 +2129,9 @@ func (a *App) updateInfo() {
 	case "help":
 		view = "Help"
 	}
-	a.infoTV.SetText(fmt.Sprintf(
+	a.infoTV.SetText(a.theme.recolor(fmt.Sprintf(
 		" [orange]Mode:[%s]   %s\n [orange]Site:[white]   %s\n [orange]View:[white]   %s\n [orange]Age:[white]    %s\n [orange]Budget:[white] %s",
-		modeColor, mode, a.provider.Site(), view, age, budget))
+		modeColor, mode, a.provider.Site(), view, age, budget)))
 }
 
 // budgetLine matches the provider's "name remaining/limit per Ns" budget
