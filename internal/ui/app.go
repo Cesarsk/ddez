@@ -627,6 +627,9 @@ func (a *App) keys(ev *tcell.EventKey) *tcell.EventKey {
 		case ev.Rune() == 'd':
 			a.deleteSelectedQuery()
 			return nil
+		case ev.Rune() == ':':
+			a.openPrompt(promptCmd)
+			return nil
 		case ev.Rune() == '?':
 			a.showHelp()
 			return nil
@@ -637,6 +640,9 @@ func (a *App) keys(ev *tcell.EventKey) *tcell.EventKey {
 		case ev.Key() == tcell.KeyEscape || ev.Rune() == 'q':
 			a.back()
 			return nil
+		case ev.Rune() == ':':
+			a.openPrompt(promptCmd)
+			return nil
 		case ev.Rune() == '?':
 			a.showHelp()
 			return nil
@@ -645,8 +651,7 @@ func (a *App) keys(ev *tcell.EventKey) *tcell.EventKey {
 	case "colpick":
 		switch {
 		case ev.Key() == tcell.KeyEscape || ev.Rune() == 'q':
-			a.persistSettings() // save the edited columns to config
-			a.back()
+			a.back() // edits already persisted on each change
 			return nil
 		case ev.Rune() == ' ':
 			a.toggleColumn()
@@ -656,6 +661,9 @@ func (a *App) keys(ev *tcell.EventKey) *tcell.EventKey {
 			return nil
 		case ev.Rune() == 'K':
 			a.moveColumn(-1)
+			return nil
+		case ev.Rune() == ':':
+			a.openPrompt(promptCmd)
 			return nil
 		case ev.Rune() == '?':
 			a.showHelp()

@@ -129,12 +129,13 @@ func (a *App) applyColPick() {
 	}
 	if sameStrings(shown, columnsFor(a.colPickView)) {
 		delete(a.opts.Columns, a.colPickView)
-		return
+	} else {
+		if a.opts.Columns == nil {
+			a.opts.Columns = map[string][]string{}
+		}
+		a.opts.Columns[a.colPickView] = shown
 	}
-	if a.opts.Columns == nil {
-		a.opts.Columns = map[string][]string{}
-	}
-	a.opts.Columns[a.colPickView] = shown
+	a.persistSettings() // save on every change, so navigating away never loses it
 }
 
 func sameStrings(a, b []string) bool {

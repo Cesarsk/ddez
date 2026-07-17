@@ -38,7 +38,8 @@ func TestAppSmoke(t *testing.T) {
 	waitFor(t, sim, "theme: mono")
 	press(sim, tcell.KeyEnter)
 	waitFor(t, sim, "theme: nord")
-	press(sim, tcell.KeyEscape)
+	// ':' must open command mode from the settings page too (not only esc).
+	typeCmd(sim, ":monitors")
 	waitFor(t, sim, "Monitors(all)")
 
 	// Column picker: C opens it for the current view; ↓ moves to a column and
