@@ -14,9 +14,8 @@ import (
 type settingKind int
 
 const (
-	setTheme   settingKind = iota // enter cycles through the built-in themes
-	setTTL                        // enter prompts for a per-view cache TTL
-	setColumns                    // enter prompts for a per-view column list
+	setTheme settingKind = iota // enter cycles through the built-in themes
+	setTTL                      // enter prompts for a per-view cache TTL
 )
 
 type settingRow struct {
@@ -35,9 +34,6 @@ func (a *App) showSettings() {
 	for _, r := range data.Resources() {
 		a.settingRows = append(a.settingRows, settingRow{kind: setTTL, key: r.Key, label: "TTL · " + r.Key})
 	}
-	for _, r := range data.Resources() {
-		a.settingRows = append(a.settingRows, settingRow{kind: setColumns, key: r.Key, label: "Columns · " + r.Key})
-	}
 	a.pushNav()
 	a.renderSettings()
 	a.settingsTbl.Select(1, 0) // land on the first setting (row 0 is the header)
@@ -55,11 +51,6 @@ func (a *App) settingValue(s settingRow) string {
 			return d.String()
 		}
 		return "(default " + defaultTTL(s.key).String() + ")"
-	case setColumns:
-		if c, ok := a.opts.Columns[s.key]; ok && len(c) > 0 {
-			return strings.Join(c, ",")
-		}
-		return "(all)"
 	}
 	return ""
 }
@@ -67,14 +58,9 @@ func (a *App) settingValue(s settingRow) string {
 // settingRawValue is the editable value used to prefill the prompt (empty when
 // no override is set, so a blank submit clears back to the default).
 func (a *App) settingRawValue(s settingRow) string {
-	switch s.kind {
-	case setTTL:
+	if s.kind == setTTL {
 		if d, ok := a.opts.TTLOverrides[s.key]; ok {
 			return d.String()
-		}
-	case setColumns:
-		if c, ok := a.opts.Columns[s.key]; ok {
-			return strings.Join(c, ",")
 		}
 	}
 	return ""
@@ -138,14 +124,13 @@ func (a *App) cycleTheme() {
 	a.flash("theme: "+a.theme.Name, false)
 }
 
-// applySettingInput applies a typed TTL/columns value to the row being edited.
+// applySettingInput applies a typed TTL value to the row being edited.
 func (a *App) applySettingInput(text string) {
 	if a.editingSet < 0 || a.editingSet >= len(a.settingRows) {
 		return
 	}
 	s := a.settingRows[a.editingSet]
-	switch s.kind {
-	case setTTL:
+	if s.kind == setTTL {
 		if text == "" {
 			delete(a.opts.TTLOverrides, s.key)
 		} else {
@@ -161,21 +146,6 @@ func (a *App) applySettingInput(text string) {
 			if s.key == a.res.Key {
 				a.res.TTL = d // effective on the view we came from, immediately
 			}
-		}
-	case setColumns:
-		if text == "" {
-			delete(a.opts.Columns, s.key)
-		} else {
-			var cols []string
-			for _, c := range strings.Split(text, ",") {
-				if c = strings.TrimSpace(c); c != "" {
-					cols = append(cols, c)
-				}
-			}
-			if a.opts.Columns == nil {
-				a.opts.Columns = map[string][]string{}
-			}
-			a.opts.Columns[s.key] = cols
 		}
 	}
 	a.renderSettings()

@@ -41,6 +41,18 @@ func TestAppSmoke(t *testing.T) {
 	press(sim, tcell.KeyEscape)
 	waitFor(t, sim, "Monitors(all)")
 
+	// Column picker: C opens it for the current view; ↓ moves to a column and
+	// space toggles its visibility; esc applies and returns to the table.
+	typeRunes(sim, "C")
+	waitFor(t, sim, "[x] STATE") // picker open, STATE shown
+	press(sim, tcell.KeyDown)    // → MUTED
+	typeRunes(sim, " ")          // hide it
+	waitFor(t, sim, "[ ] MUTED")
+	typeRunes(sim, " ") // show it again — leave the table as we found it
+	waitFor(t, sim, "[x] MUTED")
+	press(sim, tcell.KeyEscape)
+	waitFor(t, sim, "Monitors(all)")
+
 	// Command mode: switch to every registered resource.
 	typeCmd(sim, ":incidents")
 	waitFor(t, sim, "Incidents(all)")

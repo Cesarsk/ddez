@@ -129,6 +129,10 @@ type App struct {
 	settingRows []settingRow // editable settings, indexed by table data row
 	editingSet  int          // settingRows index being edited (prompt in flight)
 
+	colPick      *tview.List // the 'C' column picker
+	colPickView  string      // view whose columns the picker is editing
+	colPickItems []colItem   // picker rows (column + shown), in display order
+
 	res      data.Resource
 	rows     []data.Row
 	filtered []int
@@ -224,6 +228,10 @@ func (a *App) applyTheme() {
 	}
 	a.savedQL.SetBorderColor(a.theme.Border)
 	a.savedQL.SetTitleColor(a.theme.Title)
+	if a.colPick != nil {
+		a.colPick.SetBorderColor(a.theme.Border)
+		a.colPick.SetTitleColor(a.theme.Title)
+	}
 	a.ctxForm.SetTitleColor(a.theme.Title)
 	a.ctxForm.SetBorderColor(a.theme.Border)
 	a.ctxForm.SetFieldBackgroundColor(a.theme.FieldBg)
@@ -321,6 +329,10 @@ func (a *App) build() {
 	a.settingsTbl.SetBorder(true)
 	a.settingsTbl.SetSelectedFunc(func(row, _ int) { a.editSetting(row) })
 
+	a.colPick = tview.NewList().ShowSecondaryText(false)
+	a.colPick.SetBorder(true)
+	a.colPick.SetMainTextColor(tcell.ColorWhite)
+
 	a.ctxForm = tview.NewForm()
 	a.ctxForm.SetBorder(true)
 	a.ctxForm.SetTitle(" Add context ")
@@ -352,6 +364,7 @@ func (a *App) build() {
 		AddPage("patterns", a.patterns, true, false).
 		AddPage("savedq", a.savedQL, true, false).
 		AddPage("settings", a.settingsTbl, true, false).
+		AddPage("colpick", a.colPick, true, false).
 		AddPage("help", a.buildHelp(), true, false).
 		AddPage("ctxform", ctxFormFlex, true, false).
 		AddPage("confirm", a.confirm, true, false)
@@ -406,7 +419,7 @@ func (a *App) setHints() {
 			refresh = "off"
 		}
 		lines = []string{
-			"[aqua]<:>[white]cmd  [aqua]</>[white]filter  [aqua]<enter>[white]details  [aqua]<o>[white]open  [aqua]<c>[white]copy",
+			"[aqua]<:>[white]cmd  [aqua]</>[white]filter  [aqua]<enter>[white]details  [aqua]<o>[white]open  [aqua]<c>[white]copy  [aqua]<C>[white]cols",
 			fmt.Sprintf("[aqua]<ctrl-r>[white]refresh  [aqua]<p>[white]auto:%s  [aqua]<esc>[white]back  [aqua]<?>[white]help  [aqua]<q>[white]quit", refresh),
 			"",
 			"[orange]:monitors :incidents :slos :logs :traces :events :downtimes :dashboards :ctx :settings",
@@ -480,7 +493,8 @@ func (a *App) buildHelp() tview.Primitive {
    [aqua]ctrl-d[white]        delete the selected context (asks first)
 
  [orange]OTHER
-   [aqua]:settings[white]     theme, per-view cache TTLs and columns — applies live + saved to config
+   [aqua]C[white]             (any table) column picker — [aqua]space[white] show/hide, [aqua]J/K[white] reorder; live + saved
+   [aqua]:settings[white]     theme and per-view cache TTLs — applies live + saved to config
    [aqua]?[white]             this help (from any view)
    [aqua]q[white]             back in detail/help; quit from a table view
    [aqua]ctrl-c[white]        quit — press twice to confirm (also :q :quit :exit)
@@ -628,6 +642,26 @@ func (a *App) keys(ev *tcell.EventKey) *tcell.EventKey {
 			return nil
 		}
 		return ev // the table handles ↑/↓ and enter (edit)
+	case "colpick":
+		switch {
+		case ev.Key() == tcell.KeyEscape || ev.Rune() == 'q':
+			a.persistSettings() // save the edited columns to config
+			a.back()
+			return nil
+		case ev.Rune() == ' ':
+			a.toggleColumn()
+			return nil
+		case ev.Rune() == 'J':
+			a.moveColumn(1)
+			return nil
+		case ev.Rune() == 'K':
+			a.moveColumn(-1)
+			return nil
+		case ev.Rune() == '?':
+			a.showHelp()
+			return nil
+		}
+		return ev // the list handles ↑/↓ j/k navigation
 	case "trace":
 		switch {
 		case ev.Key() == tcell.KeyEscape || ev.Rune() == 'q':
@@ -780,6 +814,11 @@ func (a *App) keys(ev *tcell.EventKey) *tcell.EventKey {
 	case 'Q':
 		if a.res.ServerQuery && a.opts.SavedQueries != nil {
 			a.openSavedQueries()
+			return nil
+		}
+	case 'C':
+		if a.res.Key != ctxResource.Key {
+			a.openColumnPicker() // no-op if the view has no columns
 			return nil
 		}
 	}
@@ -1576,6 +1615,8 @@ func (a *App) showPage(page string) {
 		a.SetFocus(a.savedQL)
 	case "settings":
 		a.SetFocus(a.settingsTbl)
+	case "colpick":
+		a.SetFocus(a.colPick)
 	case "ctxform":
 		a.SetFocus(a.ctxForm)
 	default:

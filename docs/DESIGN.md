@@ -180,10 +180,11 @@ cesarsk/tap/ike`; goreleaser builds serialized to avoid runner OOM, formula in
 `Formula/`), ~~trace view via `APMTraceApi.GetTraceByID`~~ (one call + native
 `is_truncated`, replacing the span-search reconstruction), ~~Tier 3 config
 polish~~: ~~per-resource TTL overrides~~ (`ttl-overrides`), ~~column
-customization~~ (`columns`, display-only projection), ~~themes/skins~~ (`theme`:
-default/mono/nord/solarized), ~~saved queries per context~~ (`Q` picker —
-save/apply/delete, persisted per context), ~~`:settings` editor~~ (theme +
-per-view TTL + columns edited live and saved to config; theme re-applied at
+customization~~ (`columns`, display-only projection — edited via the `C`
+column picker: `space` show/hide + `J`/`K` reorder, live + saved), ~~themes/
+skins~~ (`theme`: default/mono/nord/solarized), ~~saved queries per context~~
+(`Q` picker — save/apply/delete, persisted per context), ~~`:settings` editor~~
+(theme + per-view TTL edited live and saved to config; theme re-applied at
 runtime via `applyTheme`).
 
 ## Traces & correlation

@@ -142,7 +142,8 @@ Switch to any view with `:` + its name or a shorter alias.
 - **Dashboards** — `enter` renders the widgets as a **grid of sparklines**
   matching the Datadog layout; `ctrl-r` re-fetches.
 - **Downtimes** — `x` cancels the selected downtime.
-- Any table — `s` cycles the sort column, `S` reverses it.
+- Any table — `s` cycles the sort column, `S` reverses it; `C` opens the
+  **column picker** (`space` show/hide, `J`/`K` reorder — live + saved).
 
 ---
 
@@ -272,6 +273,7 @@ the error rather than blanking mid-incident.
 | `j` `k` / `↑` `↓` | move selection / scroll |
 | `o` | open in Datadog web UI |
 | `c` | copy URL / query / id |
+| `C` | column picker (show/hide + reorder, live + saved) |
 | `s` / `S` | sort column / reverse |
 | `ctrl-r` | force refresh (spends budget) |
 | `p` | pause / resume auto-refresh |
@@ -303,20 +305,22 @@ the error rather than blanking mid-incident.
 
 ## Settings view
 
-`:settings` opens an in-app editor for the customizations that would otherwise
-live in the config file. Every change **applies live and is saved back to the
-config** — no restart:
+`:settings` opens an in-app editor for global customizations. Every change
+**applies live and is saved back to the config** — no restart:
 
 - **Theme** — `enter` on the Theme row cycles `default → mono → nord →
   solarized`; the whole UI recolours immediately.
 - **TTL · `<view>`** — `enter` prompts for a cache TTL (a Go duration like
   `120s`; blank clears back to the built-in default).
-- **Columns · `<view>`** — `enter` prompts for a comma-separated column list
-  (e.g. `STATE,NAME,TAGS`; blank shows all). See the column names table below.
 
-`esc` returns to where you were. These same settings can still be hand-edited
-in the config file (below) — `:settings` is just the interactive front end.
-Saved queries are managed separately, per view, with the `Q` picker.
+`esc` returns to where you were. These settings can still be hand-edited in the
+config file (below).
+
+**Columns** are customized where you use them, not here: press **`C`** on any
+table to open the column picker for that view — `space` shows/hides the
+highlighted column, `J`/`K` reorder it, `esc` applies and saves. It's live and
+persisted to the config's `columns:`; at least one column always stays visible.
+Saved queries likewise have their own per-view `Q` picker.
 
 ---
 
@@ -359,7 +363,7 @@ contexts:
 | `current-context` | Which context to start on (unless overridden by flag/env). |
 | `refresh-interval` | Auto-refresh cadence, e.g. `45s`, `0` to disable. |
 | `ttl-overrides.<view>` | Custom cache TTL per view (`logs`, `monitors`, …), Go duration; overrides the built-in default. |
-| `columns.<view>` | Column subset/order to display for a view, by name (below). Unknown names ignored; empty/all-unknown shows all. Display-only — sort/filter still see every column. |
+| `columns.<view>` | Column subset/order to display for a view, by name (below). Normally set via the in-app `C` picker; hand-editable too. Unknown names ignored; empty/all-unknown shows all. Display-only — sort/filter still see every column. |
 | `theme` | TUI colour palette: `default`, `mono`, `nord`, or `solarized`. Recolours the chrome (borders, titles, selection, accents) — status colours (alert red, ok green) are never themed. |
 
 **Available column names per view** (for `columns:`):

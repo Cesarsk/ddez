@@ -147,6 +147,7 @@ contexts:
 | `x` | on a downtime: **cancel** the selected downtime — behind a confirmation |
 | `m` | on a monitor: **mute / unmute** (toggles based on current state, via the monitor's `silenced` option, read-modify-write) — behind a confirmation. Mute status shows in the **MUTED** column, independent of alert state |
 | `c` | **copy** the selected row's web URL (or log query / id) to the clipboard |
+| `C` | **column picker** (any table) — `space` show/hide, `J`/`K` reorder; applies live and saves to the config |
 | `s` / `S` | cycle the sort column / reverse the direction (any table view) |
 | `t` | on SLOs: cycle the **Type** filter (metric / monitor / time_slice / all) |
 | `p` | pause / resume auto-refresh (the header shows `auto:on`/`off`) |
@@ -162,9 +163,9 @@ Auto-refresh interval is configurable: `--refresh 45s` (or `0` to disable), or
 `refresh-interval: 45s` in the config file; `p` pauses/resumes at runtime.
 
 **Customization** — `:settings` edits the theme (`default`/`mono`/`nord`/
-`solarized`), per-view cache TTLs, and per-view columns; changes apply live and
-save to the config file. The same keys live under `theme:`, `ttl-overrides:`
-and `columns:` in the config if you'd rather hand-edit. See the
+`solarized`) and per-view cache TTLs; `C` on any table opens a **column picker**
+(`space` show/hide, `J`/`K` reorder). Everything applies live and saves to the
+config (`theme:`, `ttl-overrides:`, `columns:` — hand-editable too). See the
 [User Manual](docs/MANUAL.md#settings-view).
 
 ## Rate limits are a feature, not a footnote
