@@ -141,19 +141,13 @@ completion (facet API, rate-limited) is a possible later opt-in mode.
    add-a-note / relationship writes needing their own request shapes.
    Confirm-gated like every other write.
 
-### UX polish (Tier 3 — config-schema changes)
-
-5. Saved queries per context; column customization. (`:`-autocomplete already
-   covers most of a command palette.)
-6. Per-resource TTL overrides and skins in the config file.
-
 ### Longer-term
 
-7. **Token rotation** on an existing context — folds into `ike auth login
+5. **Token rotation** on an existing context — folds into `ike auth login
    --context <existing>` (re-auth updates the keychain token in place), so no
    separate key/flow is needed once auth login lands.
-8. Bulk select + act (mute N monitors / resolve N incidents) behind one confirm.
-9. Hardened incidents field mapping (union types; verify against a live org).
+6. Bulk select + act (mute N monitors / resolve N incidents) behind one confirm.
+7. Hardened incidents field mapping (union types; verify against a live org).
 
 ### Deferred deliberately
 
@@ -184,7 +178,11 @@ logs chronological), ~~downtimes list~~ (`:downtimes`), ~~downtimes cancel~~
 confirm-gated), ~~first Homebrew release~~ (`v0.1.0`+`v0.1.1`, `brew install
 cesarsk/tap/ike`; goreleaser builds serialized to avoid runner OOM, formula in
 `Formula/`), ~~trace view via `APMTraceApi.GetTraceByID`~~ (one call + native
-`is_truncated`, replacing the span-search reconstruction).
+`is_truncated`, replacing the span-search reconstruction), ~~Tier 3 config
+polish~~: ~~per-resource TTL overrides~~ (`ttl-overrides`), ~~column
+customization~~ (`columns`, display-only projection), ~~themes/skins~~ (`theme`:
+default/mono/nord/solarized), ~~saved queries per context~~ (`Q` picker —
+save/apply/delete, persisted per context).
 
 ## Traces & correlation
 

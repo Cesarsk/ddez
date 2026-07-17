@@ -69,6 +69,42 @@ ttl-overrides:
 	}
 }
 
+func TestSaveAndDeleteQuery(t *testing.T) {
+	p := write(t, `
+current-context: dev
+contexts:
+  dev:
+    site: datadoghq.eu
+    api-key-env: IKE_DEV_API_KEY
+    app-key-env: IKE_DEV_APP_KEY
+`)
+	c, err := Load(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !c.SaveQuery("dev", "errors", "logs", "status:error") {
+		t.Fatal("SaveQuery on an existing context should succeed")
+	}
+	// Same name+view replaces in place.
+	c.SaveQuery("dev", "errors", "logs", "status:error env:prod")
+	if got := c.Contexts["dev"].SavedQueries; len(got) != 1 || got[0].Query != "status:error env:prod" {
+		t.Fatalf("replace failed: %v", got)
+	}
+	// Same name, different view = a distinct entry.
+	c.SaveQuery("dev", "errors", "traces", "service:api")
+	if len(c.Contexts["dev"].SavedQueries) != 2 {
+		t.Fatalf("want 2 queries, got %d", len(c.Contexts["dev"].SavedQueries))
+	}
+	// Delete is name+view scoped.
+	c.DeleteQuery("dev", "errors", "logs")
+	if rem := c.Contexts["dev"].SavedQueries; len(rem) != 1 || rem[0].View != "traces" {
+		t.Fatalf("want only the traces query left, got %v", rem)
+	}
+	if c.SaveQuery("nope", "x", "logs", "*") {
+		t.Fatal("SaveQuery on an unknown context should return false")
+	}
+}
+
 func TestTTLOverrideInvalidDurationRejected(t *testing.T) {
 	p := write(t, `
 current-context: dev

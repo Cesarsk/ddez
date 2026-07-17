@@ -179,6 +179,11 @@ logs search API directly:
   of shapes. Zero extra API calls — it clusters what's already on screen.
 - **Query history** — in the `/` prompt, `↑`/`↓` recall previous queries for
   this view. `ctrl-u` clears the line.
+- **Saved queries** — `Q` opens a per-context picker of bookmarked queries for
+  the current view: `enter` applies one, `a` saves the *active* query under a
+  name you type, `d` deletes the highlighted one. Saved queries persist to the
+  config file, scoped to the org (a query only makes sense against the org
+  whose services/tags it references). Works in Logs, Traces and Events.
 
 ---
 
@@ -284,6 +289,7 @@ the error rather than blanking mid-incident.
 | `t` | Logs, Traces | drill to trace waterfall |
 | `t` | SLOs | cycle type filter |
 | `P` | Logs | cluster into patterns |
+| `Q` | Logs/Traces/Events | saved-query picker (enter apply · `a` save · `d` delete) |
 | `r` | Incidents | change state |
 | `v` | Incidents | change severity |
 | `m` | Monitors | mute / unmute |
@@ -316,6 +322,9 @@ contexts:
                                  # 'open in Datadog' links; the API is unaffected
     api-key-env: IKE_DEV_API_KEY # name of the env var holding the key —
     app-key-env: IKE_DEV_APP_KEY # secrets NEVER go in this file
+    saved-queries:               # bookmarked queries (managed in-app via 'Q')
+      - {name: errors, view: logs, query: "status:error"}
+      - {name: payments, view: traces, query: "service:payments-api"}
   prod:
     site: datadoghq.com
     keychain: true               # secrets stored in the OS keychain (via `:ctx` → a)
@@ -351,6 +360,7 @@ contexts:
 | `contexts.<name>.token-env` | Env var name for a bearer token. |
 | `contexts.<name>.keychain` | `true` → secrets are in the OS keychain. |
 | `contexts.<name>.auth` | `""` (key pair) or `token`. |
+| `contexts.<name>.saved-queries` | Bookmarked queries (`{name, view, query}`), managed in-app with `Q`. Per-context. |
 
 No config file? The `DD_API_KEY` / `DD_APP_KEY` / `DD_SITE` env vars act as an
 implicit single `default` context.

@@ -84,6 +84,17 @@ type Context struct {
 	TokenEnv  string `yaml:"token-env,omitempty"`
 	Keychain  bool   `yaml:"keychain,omitempty"`
 	Auth      string `yaml:"auth,omitempty"` // "" (key pair) or "token"
+	// SavedQueries are named, view-scoped queries the user has bookmarked in
+	// this org (recalled via the 'Q' picker). Per-context because a query
+	// only makes sense against the org whose services/tags it references.
+	SavedQueries []SavedQuery `yaml:"saved-queries,omitempty"`
+}
+
+// SavedQuery is a bookmarked query for a resource view (logs/traces/events).
+type SavedQuery struct {
+	Name  string `yaml:"name"`
+	View  string `yaml:"view"`
+	Query string `yaml:"query"`
 }
 
 type Config struct {
@@ -270,4 +281,42 @@ func (c *Config) Names() []string {
 	}
 	sort.Strings(names)
 	return names
+}
+
+// SaveQuery adds or replaces (matched by name+view) a saved query on a context.
+// Reports whether the context existed.
+func (c *Config) SaveQuery(context, name, view, query string) bool {
+	ctx, ok := c.Contexts[context]
+	if !ok {
+		return false
+	}
+	sq := SavedQuery{Name: name, View: view, Query: query}
+	for i, q := range ctx.SavedQueries {
+		if q.Name == name && q.View == view {
+			ctx.SavedQueries[i] = sq
+			c.Contexts[context] = ctx
+			return true
+		}
+	}
+	ctx.SavedQueries = append(ctx.SavedQueries, sq)
+	c.Contexts[context] = ctx
+	return true
+}
+
+// DeleteQuery removes a saved query (matched by name+view) from a context.
+func (c *Config) DeleteQuery(context, name, view string) bool {
+	ctx, ok := c.Contexts[context]
+	if !ok {
+		return false
+	}
+	var out []SavedQuery
+	for _, q := range ctx.SavedQueries {
+		if q.Name == name && q.View == view {
+			continue
+		}
+		out = append(out, q)
+	}
+	ctx.SavedQueries = out
+	c.Contexts[context] = ctx
+	return true
 }

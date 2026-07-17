@@ -64,6 +64,30 @@ func main() {
 			delete(sites, name)
 			return nil
 		}
+		savedQ := map[string][]ui.SavedQuery{}
+		opts.SavedQueries = func(ctxName string) []ui.SavedQuery { return savedQ[ctxName] }
+		opts.SaveQuery = func(ctxName, name, view, query string) error {
+			qs := savedQ[ctxName]
+			for i, q := range qs {
+				if q.Name == name && q.View == view {
+					qs[i] = ui.SavedQuery{Name: name, View: view, Query: query}
+					return nil
+				}
+			}
+			savedQ[ctxName] = append(qs, ui.SavedQuery{Name: name, View: view, Query: query})
+			return nil
+		}
+		opts.DeleteQuery = func(ctxName, name, view string) error {
+			qs := savedQ[ctxName]
+			out := qs[:0]
+			for _, q := range qs {
+				if q.Name != name || q.View != view {
+					out = append(out, q)
+				}
+			}
+			savedQ[ctxName] = out
+			return nil
+		}
 		opts.Current = "demo-dev"
 	} else {
 		cfg, err := config.Load(config.Path())
@@ -101,6 +125,25 @@ func main() {
 		opts.TTLOverrides = cfg.ResolvedTTLOverrides()
 		opts.Columns = cfg.Columns
 		opts.Theme = cfg.Theme
+		opts.SavedQueries = func(ctxName string) []ui.SavedQuery {
+			c, ok := cfg.Contexts[ctxName]
+			if !ok {
+				return nil
+			}
+			out := make([]ui.SavedQuery, 0, len(c.SavedQueries))
+			for _, q := range c.SavedQueries {
+				out = append(out, ui.SavedQuery{Name: q.Name, View: q.View, Query: q.Query})
+			}
+			return out
+		}
+		opts.SaveQuery = func(ctxName, name, view, query string) error {
+			cfg.SaveQuery(ctxName, name, view, query)
+			return cfg.Save(config.Path())
+		}
+		opts.DeleteQuery = func(ctxName, name, view string) error {
+			cfg.DeleteQuery(ctxName, name, view)
+			return cfg.Save(config.Path())
+		}
 		for _, n := range cfg.Names() {
 			opts.Contexts = append(opts.Contexts, ui.ContextInfo{Name: n, Site: cfg.Contexts[n].Site, Keys: keysLabel(cfg.Contexts[n])})
 		}

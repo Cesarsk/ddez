@@ -204,6 +204,20 @@ func TestAppSmoke(t *testing.T) {
 	typeRunes(sim, "l")
 	waitFor(t, sim, "Logs(service:kong-proxy · 15m)")
 	waitFor(t, sim, "kong-proxy") // rows for that service are on screen
+
+	// Saved queries: Q opens the picker; 'a' saves the current query under a
+	// typed name; it then appears in the list, and enter applies it.
+	typeRunes(sim, "Q")
+	waitFor(t, sim, "Saved queries")
+	typeRunes(sim, "a")
+	waitFor(t, sim, "save query as")
+	typeRunes(sim, "kong-errs")
+	press(sim, tcell.KeyEnter)
+	waitFor(t, sim, "saved kong-errs")
+	waitFor(t, sim, "kong-errs") // now listed in the picker
+	press(sim, tcell.KeyEnter)   // apply the (only) saved query
+	waitFor(t, sim, "Logs(service:kong-proxy · 15m)")
+
 	press(sim, tcell.KeyEscape)
 	waitFor(t, sim, "Monitors(/kong)")
 
@@ -405,6 +419,7 @@ func TestProjectColumns(t *testing.T) {
 func newDemoApp(t *testing.T) *App {
 	t.Helper()
 	sites := map[string]string{"demo-dev": "datadoghq.eu", "demo-prod": "datadoghq.com"}
+	savedQ := map[string][]SavedQuery{}
 	app, err := New(Options{
 		Contexts: []ContextInfo{
 			{Name: "demo-dev", Site: sites["demo-dev"], Keys: "built-in"},
@@ -420,6 +435,21 @@ func newDemoApp(t *testing.T) *App {
 		},
 		DeleteContext: func(name string) error {
 			delete(sites, name)
+			return nil
+		},
+		SavedQueries: func(ctxName string) []SavedQuery { return savedQ[ctxName] },
+		SaveQuery: func(ctxName, name, view, query string) error {
+			savedQ[ctxName] = append(savedQ[ctxName], SavedQuery{Name: name, View: view, Query: query})
+			return nil
+		},
+		DeleteQuery: func(ctxName, name, view string) error {
+			out := savedQ[ctxName][:0]
+			for _, q := range savedQ[ctxName] {
+				if q.Name != name || q.View != view {
+					out = append(out, q)
+				}
+			}
+			savedQ[ctxName] = out
 			return nil
 		},
 		Refresh: time.Minute,

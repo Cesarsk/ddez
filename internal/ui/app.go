@@ -27,6 +27,7 @@ const (
 	promptNone promptMode = iota
 	promptCmd
 	promptFilter
+	promptSaveQuery // naming the current query for the 'Q' picker
 )
 
 // ContextInfo describes one selectable Datadog org context for the :ctx view.
@@ -34,6 +35,13 @@ type ContextInfo struct {
 	Name string
 	Site string
 	Keys string // where the credentials come from, e.g. "$IKE_DEV_API_KEY"
+}
+
+// SavedQuery is a bookmarked, view-scoped query recalled via the 'Q' picker.
+type SavedQuery struct {
+	Name  string
+	View  string
+	Query string
 }
 
 // ProviderFactory builds a fresh Provider for a named context.
@@ -66,6 +74,12 @@ type Options struct {
 	Columns map[string][]string
 	// Theme names a built-in colour palette (empty/unknown = "default").
 	Theme string
+	// SavedQueries returns the bookmarked queries for a context (nil = none).
+	// SaveQuery / DeleteQuery persist a change for a context; all three may be
+	// nil to disable the feature (e.g. demo mode wires in-memory versions).
+	SavedQueries func(context string) []SavedQuery
+	SaveQuery    func(context, name, view, query string) error
+	DeleteQuery  func(context, name, view string) error
 }
 
 // ctxResource is the :ctx pseudo-resource. It is rendered like any table but
@@ -88,20 +102,24 @@ type App struct {
 	current      string // active context name
 	refreshEvery time.Duration
 
-	content  *tview.Pages // "table" | "detail" | "help" | "ctxform" (+ "confirm" overlay)
-	infoTV   *tview.TextView
-	hintTV   *tview.TextView
-	table    *tview.Table
-	prompt   *tview.InputField
-	status   *tview.TextView
-	footer   *tview.Pages
-	detail   *tview.TextView
-	dash     *tview.TextView
-	trace    *tview.TextView
-	patterns *tview.TextView
-	ctxForm  *tview.Form
-	formErr  *tview.TextView
-	confirm  *tview.Modal
+	content   *tview.Pages // "table" | "detail" | "help" | "ctxform" (+ "confirm" overlay)
+	infoTV    *tview.TextView
+	hintTV    *tview.TextView
+	table     *tview.Table
+	prompt    *tview.InputField
+	status    *tview.TextView
+	footer    *tview.Pages
+	detail    *tview.TextView
+	dash      *tview.TextView
+	trace     *tview.TextView
+	patterns  *tview.TextView
+	ctxForm   *tview.Form
+	formErr   *tview.TextView
+	confirm   *tview.Modal
+	savedQL   *tview.List  // the 'Q' saved-query picker
+	savedQV   string       // view the open picker is scoped to
+	savedQIt  []SavedQuery // items backing the picker, by list index
+	pendSaveQ string       // query pending a name (save prompt in flight)
 
 	res      data.Resource
 	rows     []data.Row
@@ -270,6 +288,14 @@ func (a *App) build() {
 	a.patterns.SetBorderColor(a.theme.Border)
 	a.patterns.SetTitleColor(a.theme.Title)
 
+	a.savedQL = tview.NewList().ShowSecondaryText(true)
+	a.savedQL.SetBorder(true)
+	a.savedQL.SetBorderColor(a.theme.Border)
+	a.savedQL.SetTitleColor(a.theme.Title)
+	a.savedQL.SetMainTextColor(tcell.ColorWhite)
+	a.savedQL.SetSecondaryTextColor(tcell.ColorGray)
+	a.savedQL.SetSelectedFunc(func(i int, _, _ string, _ rune) { a.applySavedQuery(i) })
+
 	a.ctxForm = tview.NewForm()
 	a.ctxForm.SetBorder(true)
 	a.ctxForm.SetTitle(" Add context ")
@@ -304,6 +330,7 @@ func (a *App) build() {
 		AddPage("dashboard", a.dash, true, false).
 		AddPage("trace", a.trace, true, false).
 		AddPage("patterns", a.patterns, true, false).
+		AddPage("savedq", a.savedQL, true, false).
 		AddPage("help", a.buildHelp(), true, false).
 		AddPage("ctxform", ctxFormFlex, true, false).
 		AddPage("confirm", a.confirm, true, false)
@@ -372,11 +399,11 @@ func (a *App) setHints() {
 		case "downtimes":
 			lines = append(lines, "[gray]<x>cancel downtime  <s>sort <S>reverse")
 		case "logs":
-			lines = append(lines, "[gray]</>query (tab=complete, ↑ history)  <t>trace  <P>patterns  window: <1>15m..<5>7d")
+			lines = append(lines, "[gray]</>query (tab=complete, ↑ history)  <t>trace  <P>patterns  <Q>saved  window: <1>15m..<5>7d")
 		case "traces":
-			lines = append(lines, "[gray]</>query  <t>trace waterfall  <l>logs for trace  window: <1>15m..<5>7d  <s>sort")
+			lines = append(lines, "[gray]</>query  <t>trace waterfall  <l>logs for trace  <Q>saved  window: <1>15m..<5>7d")
 		case "events":
-			lines = append(lines, "[gray]</>query  window: <1>15m..<5>7d  <s>sort   (deploys, alerts, changes)")
+			lines = append(lines, "[gray]</>query  <Q>saved  window: <1>15m..<5>7d  <s>sort   (deploys, alerts, changes)")
 		case ctxResource.Key:
 			lines = append(lines, "[gray]<enter>switch org  <a>add  <e>edit config  <ctrl-d>delete")
 		default:
@@ -408,6 +435,7 @@ func (a *App) buildHelp() tview.Primitive {
    [aqua]1-5[white]           (logs/traces/events) time window: 15m / 1h / 4h / 1d / 7d
    [aqua]t[white]             (SLOs) cycle the Type filter: metric / monitor / time_slice / all
    [aqua]P[white]             (logs) cluster the loaded lines into patterns — flood triage
+   [aqua]Q[white]             (logs/traces/events) saved-query picker — [aqua]enter[white] apply, [aqua]a[white] save, [aqua]d[white] delete
 
  [orange]CORRELATION (the debugging loop)
    [aqua]l[white]             drill to logs — (monitor) its log query; (trace) that trace's logs
@@ -551,6 +579,22 @@ func (a *App) keys(ev *tcell.EventKey) *tcell.EventKey {
 			return tcell.NewEventKey(tcell.KeyUp, 0, tcell.ModNone)
 		}
 		return ev
+	case "savedq":
+		switch {
+		case ev.Key() == tcell.KeyEscape || ev.Rune() == 'q':
+			a.back()
+			return nil
+		case ev.Rune() == 'a':
+			a.saveCurrentQuery()
+			return nil
+		case ev.Rune() == 'd':
+			a.deleteSelectedQuery()
+			return nil
+		case ev.Rune() == '?':
+			a.showHelp()
+			return nil
+		}
+		return ev // the List handles ↑/↓ and enter (apply)
 	case "trace":
 		switch {
 		case ev.Key() == tcell.KeyEscape || ev.Rune() == 'q':
@@ -698,6 +742,11 @@ func (a *App) keys(ev *tcell.EventKey) *tcell.EventKey {
 			if row, ok := a.selectedRow(); ok {
 				a.confirmCancelDowntime(row)
 			}
+			return nil
+		}
+	case 'Q':
+		if a.res.ServerQuery && a.opts.SavedQueries != nil {
+			a.openSavedQueries()
 			return nil
 		}
 	}
@@ -930,15 +979,18 @@ func arrow(asc bool) string {
 func (a *App) openPrompt(m promptMode) {
 	a.promptM = m
 	prefill := ""
-	if m == promptCmd {
+	switch {
+	case m == promptCmd:
 		a.prompt.SetLabel(" 🐶 > ")
-	} else if a.res.ServerQuery {
+	case m == promptSaveQuery:
+		a.prompt.SetLabel(" save query as> ") // empty field: type a name
+	case a.res.ServerQuery:
 		a.prompt.SetLabel(" query> ")
 		prefill = a.queries[a.res.Key] // edit the current query, don't retype
 		if prefill == "*" {
 			prefill = ""
 		}
-	} else {
+	default:
 		a.prompt.SetLabel(" /")
 	}
 	a.prompt.SetText(prefill)
@@ -950,9 +1002,12 @@ func (a *App) openPrompt(m promptMode) {
 func (a *App) closePrompt() {
 	a.promptM = promptNone
 	a.footer.SwitchToPage("status")
-	if a.page == "detail" {
+	switch a.page {
+	case "detail":
 		a.SetFocus(a.detail)
-	} else {
+	case "savedq":
+		a.SetFocus(a.savedQL)
+	default:
 		a.SetFocus(a.table)
 	}
 }
@@ -985,6 +1040,18 @@ func (a *App) promptDone(key tcell.Key) {
 		} else {
 			a.filter = text
 			a.applyFilter()
+		}
+	case promptSaveQuery:
+		if text == "" || a.opts.SaveQuery == nil {
+			return
+		}
+		if err := a.opts.SaveQuery(a.current, text, a.savedQV, a.pendSaveQ); err != nil {
+			a.flash("✗ "+err.Error(), true)
+			return
+		}
+		a.flash("saved "+text, false)
+		if a.page == "savedq" {
+			a.refreshSavedQueries()
 		}
 	}
 }
@@ -1100,6 +1167,82 @@ func (a *App) showPatterns() {
 	a.patterns.SetText(renderPatterns(pats, len(msgs))).ScrollToBeginning()
 	a.patterns.SetTitle(fmt.Sprintf(" Log patterns [%d] ", len(pats)))
 	a.showPage("patterns")
+}
+
+// openSavedQueries shows the 'Q' picker for the current view's bookmarked
+// queries: enter applies, 'a' saves the active query, 'd' deletes, esc backs.
+func (a *App) openSavedQueries() {
+	a.savedQV = a.res.Key
+	a.pushNav()
+	a.refreshSavedQueries()
+	a.showPage("savedq")
+}
+
+// refreshSavedQueries repopulates the picker from the current context, scoped
+// to the picker's view. savedQIt tracks the real entries by list index so the
+// trailing placeholder (shown when empty) is never applied or deleted.
+func (a *App) refreshSavedQueries() {
+	a.savedQL.Clear()
+	a.savedQIt = nil
+	if a.opts.SavedQueries != nil {
+		for _, q := range a.opts.SavedQueries(a.current) {
+			if q.View != a.savedQV {
+				continue
+			}
+			a.savedQIt = append(a.savedQIt, q)
+			a.savedQL.AddItem(q.Name, q.Query, 0, nil)
+		}
+	}
+	a.savedQL.SetTitle(fmt.Sprintf(" Saved queries · %s [%d]  <enter>apply <a>save <d>delete ", a.savedQV, len(a.savedQIt)))
+	if len(a.savedQIt) == 0 {
+		a.savedQL.AddItem("(none yet)", "press <a> to save the current query", 0, nil)
+	}
+}
+
+// applySavedQuery sets the selected query as the view's query, returns to the
+// table and refetches. Index beyond the real entries = the placeholder.
+func (a *App) applySavedQuery(i int) {
+	if i < 0 || i >= len(a.savedQIt) {
+		return
+	}
+	q := a.savedQIt[i]
+	a.back() // pop the picker → the view's table
+	a.queries[q.View] = q.Query
+	a.flash("query: "+q.Name, false)
+	a.load(true)
+}
+
+// saveCurrentQuery bookmarks the view's active query under a name typed at the
+// prompt. No-op if there's nothing meaningful to save.
+func (a *App) saveCurrentQuery() {
+	if a.opts.SaveQuery == nil {
+		return
+	}
+	q := a.queries[a.savedQV]
+	if q == "" || q == "*" {
+		a.flash("no query to save — type one with / first", true)
+		return
+	}
+	a.pendSaveQ = q
+	a.openPrompt(promptSaveQuery)
+}
+
+// deleteSelectedQuery removes the highlighted saved query and refreshes.
+func (a *App) deleteSelectedQuery() {
+	if a.opts.DeleteQuery == nil {
+		return
+	}
+	i := a.savedQL.GetCurrentItem()
+	if i < 0 || i >= len(a.savedQIt) {
+		return
+	}
+	q := a.savedQIt[i]
+	if err := a.opts.DeleteQuery(a.current, q.Name, q.View); err != nil {
+		a.flash("✗ "+err.Error(), true)
+		return
+	}
+	a.flash("deleted "+q.Name, false)
+	a.refreshSavedQueries()
 }
 
 // renderPatterns lists clusters most-frequent first: count, template, example.
@@ -1382,6 +1525,8 @@ func (a *App) showPage(page string) {
 		a.SetFocus(a.trace)
 	case "patterns":
 		a.SetFocus(a.patterns)
+	case "savedq":
+		a.SetFocus(a.savedQL)
 	case "ctxform":
 		a.SetFocus(a.ctxForm)
 	default:
