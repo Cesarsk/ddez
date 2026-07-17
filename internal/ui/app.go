@@ -270,13 +270,7 @@ func (a *App) build() {
 	a.prompt.SetAutocompleteFunc(func(current string) []string {
 		switch {
 		case a.promptM == promptCmd && current != "":
-			var out []string
-			for _, r := range data.Resources() {
-				if strings.HasPrefix(r.Key, strings.ToLower(current)) {
-					out = append(out, r.Key)
-				}
-			}
-			return out
+			return commandCompletions(current)
 		case a.promptM == promptFilter && a.res.Key == "logs":
 			return a.logQueryCompletions(current)
 		}
@@ -1210,6 +1204,25 @@ func (a *App) execCommand(cmd string) {
 		return
 	}
 	a.flash(fmt.Sprintf("unknown command %q — try :monitors :incidents :slos :logs :dashboards :ctx :settings", cmd), true)
+}
+
+// commandCompletions returns the ':' command names offered by autocomplete —
+// every resource key plus the pseudo-commands execCommand accepts. Kept next to
+// execCommand so the two don't drift (the earlier ':' gap was exactly that).
+func commandCompletions(prefix string) []string {
+	prefix = strings.ToLower(strings.TrimSpace(prefix))
+	names := make([]string, 0, len(data.Resources())+4)
+	for _, r := range data.Resources() {
+		names = append(names, r.Key)
+	}
+	names = append(names, "ctx", "settings", "help", "quit")
+	var out []string
+	for _, n := range names {
+		if strings.HasPrefix(n, prefix) {
+			out = append(out, n)
+		}
+	}
+	return out
 }
 
 // drillToLogs is the k9s killer feature: from a monitor, jump straight to

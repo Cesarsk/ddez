@@ -440,6 +440,35 @@ func TestProjectColumns(t *testing.T) {
 	}
 }
 
+func TestCommandCompletions(t *testing.T) {
+	has := func(list []string, s string) bool {
+		for _, x := range list {
+			if x == s {
+				return true
+			}
+		}
+		return false
+	}
+	// Resource keys complete (these already worked).
+	if !has(commandCompletions("mon"), "monitors") {
+		t.Errorf("mon should offer monitors: %v", commandCompletions("mon"))
+	}
+	// Pseudo-commands complete (the reported gap).
+	if !has(commandCompletions("c"), "ctx") {
+		t.Errorf("c should offer ctx: %v", commandCompletions("c"))
+	}
+	if !has(commandCompletions("se"), "settings") {
+		t.Errorf("se should offer settings: %v", commandCompletions("se"))
+	}
+	// A prefix matching both a resource and a pseudo-command offers both.
+	if got := commandCompletions("s"); !has(got, "slos") || !has(got, "settings") {
+		t.Errorf("s should offer slos and settings: %v", got)
+	}
+	if got := commandCompletions("zzz"); len(got) != 0 {
+		t.Errorf("no match should be empty: %v", got)
+	}
+}
+
 func newDemoApp(t *testing.T) *App {
 	t.Helper()
 	sites := map[string]string{"demo-dev": "datadoghq.eu", "demo-prod": "datadoghq.com"}
