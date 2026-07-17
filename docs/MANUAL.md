@@ -301,6 +301,9 @@ the error rather than blanking mid-incident.
 ```yaml
 current-context: dev
 refresh-interval: 30s          # optional; overrides the 30s default
+ttl-overrides:                 # optional; per-view cache TTL (Go durations)
+  logs: 120s                   # trade freshness against the API rate limit
+  monitors: 15s
 contexts:
   dev:
     site: datadoghq.eu
@@ -322,6 +325,7 @@ contexts:
 |-------|---------|
 | `current-context` | Which context to start on (unless overridden by flag/env). |
 | `refresh-interval` | Auto-refresh cadence, e.g. `45s`, `0` to disable. |
+| `ttl-overrides.<view>` | Custom cache TTL per view (`logs`, `monitors`, …), Go duration; overrides the built-in default. |
 | `contexts.<name>.site` | Datadog site (must be a known Datadog host — validated). |
 | `contexts.<name>.subdomain` | Custom web-UI subdomain, for deep links only. |
 | `contexts.<name>.api-key-env` / `app-key-env` | Env var **names** for the key pair. |

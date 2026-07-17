@@ -92,6 +92,27 @@ type Config struct {
 	// RefreshInterval configures auto-refresh, e.g. "30s", "1m", or "0" to
 	// disable. The --refresh flag overrides it when explicitly passed.
 	RefreshInterval string `yaml:"refresh-interval,omitempty"`
+	// TTLOverrides maps a resource key (e.g. "logs", "monitors") to a custom
+	// cache TTL, overriding the built-in default. A power-user knob for
+	// trading freshness against the per-org API rate limit. Values are
+	// Go-style durations ("120s", "5m", "0" to always refetch).
+	TTLOverrides map[string]string `yaml:"ttl-overrides,omitempty"`
+}
+
+// ResolvedTTLOverrides parses the TTL overrides into durations. Load has
+// already validated that a file config's values parse; unparseable entries
+// are dropped defensively so a programmatic config can't panic here.
+func (c *Config) ResolvedTTLOverrides() map[string]time.Duration {
+	if len(c.TTLOverrides) == 0 {
+		return nil
+	}
+	m := make(map[string]time.Duration, len(c.TTLOverrides))
+	for k, s := range c.TTLOverrides {
+		if d, err := time.ParseDuration(s); err == nil {
+			m[k] = d
+		}
+	}
+	return m
 }
 
 // Refresh returns the configured auto-refresh interval, or def if unset or
@@ -162,6 +183,11 @@ func Load(path string) (*Config, error) {
 		keyPair := ctx.APIKeyEnv != "" && ctx.AppKeyEnv != ""
 		if !ctx.Keychain && !keyPair && ctx.TokenEnv == "" {
 			return nil, fmt.Errorf("%s: context %q needs credentials: api-key-env + app-key-env, token-env, or keychain: true", path, name)
+		}
+	}
+	for key, s := range c.TTLOverrides {
+		if _, err := time.ParseDuration(s); err != nil {
+			return nil, fmt.Errorf("%s: ttl-overrides[%q] = %q is not a valid duration (e.g. %q, %q)", path, key, s, "120s", "5m")
 		}
 	}
 	// A dangling or empty current-context is not fatal — e.g. the user

@@ -98,6 +98,7 @@ func main() {
 			fatal(fmt.Sprintf("context %q is not defined in %s (available: %v)", current, config.Path(), cfg.Names()))
 		}
 		opts.Current = current
+		opts.TTLOverrides = cfg.ResolvedTTLOverrides()
 		for _, n := range cfg.Names() {
 			opts.Contexts = append(opts.Contexts, ui.ContextInfo{Name: n, Site: cfg.Contexts[n].Site, Keys: keysLabel(cfg.Contexts[n])})
 		}

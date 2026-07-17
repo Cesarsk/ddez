@@ -44,6 +44,47 @@ contexts:
 	}
 }
 
+func TestTTLOverrides(t *testing.T) {
+	p := write(t, `
+current-context: dev
+contexts:
+  dev:
+    site: datadoghq.eu
+    api-key-env: IKE_DEV_API_KEY
+    app-key-env: IKE_DEV_APP_KEY
+ttl-overrides:
+  logs: 120s
+  monitors: 1m
+`)
+	c, err := Load(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := c.ResolvedTTLOverrides()
+	if got["logs"] != 120*time.Second {
+		t.Errorf("logs ttl = %v, want 120s", got["logs"])
+	}
+	if got["monitors"] != time.Minute {
+		t.Errorf("monitors ttl = %v, want 1m", got["monitors"])
+	}
+}
+
+func TestTTLOverrideInvalidDurationRejected(t *testing.T) {
+	p := write(t, `
+current-context: dev
+contexts:
+  dev:
+    site: datadoghq.eu
+    api-key-env: IKE_DEV_API_KEY
+    app-key-env: IKE_DEV_APP_KEY
+ttl-overrides:
+  logs: not-a-duration
+`)
+	if _, err := Load(p); err == nil {
+		t.Fatal("expected error for invalid ttl-override duration")
+	}
+}
+
 func TestRejectPlaintextSecrets(t *testing.T) {
 	p := write(t, `
 current-context: dev

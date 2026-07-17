@@ -58,6 +58,9 @@ type Options struct {
 	// fresh context list; an error keeps the previous in-memory state.
 	ReloadContexts func() ([]ContextInfo, error)
 	Refresh        time.Duration
+	// TTLOverrides maps a resource key to a custom cache TTL from the config
+	// file, overriding the built-in default (empty = use defaults).
+	TTLOverrides map[string]time.Duration
 }
 
 // ctxResource is the :ctx pseudo-resource. It is rendered like any table but
@@ -1728,10 +1731,21 @@ func (a *App) applyCancelDowntime(r data.Row) {
 
 // ---- data flow -------------------------------------------------------------
 
+// tuneResource applies config-driven customization to a resource as it enters
+// the app — currently the per-resource cache TTL override from the config
+// file. A single choke point (switchResource) so every view is covered.
+func (a *App) tuneResource(res data.Resource) data.Resource {
+	if d, ok := a.opts.TTLOverrides[res.Key]; ok {
+		res.TTL = d
+	}
+	return res
+}
+
 func (a *App) switchResource(res data.Resource) {
 	if a.page == "table" && res.Key == a.res.Key {
 		return // ':monitors' while on monitors — nothing to do
 	}
+	res = a.tuneResource(res)
 	if a.res.Key != "" {
 		a.pushNav() // k9s-style: goto pushes, esc pops back here
 	}
