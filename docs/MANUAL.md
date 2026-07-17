@@ -135,7 +135,8 @@ Switch to any view with `:` + its name or a shorter alias.
 - **Monitors** — `0`–`4` quick-filter by state (alert / warn / nodata / ok / all);
   `l` → its logs; `m` → mute/unmute.
 - **Incidents** — `0`–`3` quick-filter by state (active / stable / resolved / all);
-  `r` → change state; `v` → change severity.
+  `r` → change state; `v` → change severity; `I` → take command (assign the
+  commander to you); `T` → add a to-do (action item, assigned to you).
 - **SLOs** — `enter` shows live **attainment + error budget**; `t` cycles the
   type filter (metric / monitor / time_slice / all).
 - **Logs / Traces / Events** — `/` is a Datadog query; `1`–`5` set the time
@@ -306,6 +307,8 @@ the error rather than blanking mid-incident.
 | `Q` | Logs/Traces/Events | saved-query picker (enter apply · `a` save · `d` delete) |
 | `r` | Incidents | change state |
 | `v` | Incidents | change severity |
+| `I` | Incidents | take command (assign commander to you) |
+| `T` | Incidents | add a to-do (action item) |
 | `m` | Monitors | mute / unmute |
 | `x` | Downtimes | cancel downtime |
 | `↑` `↓` | `/` prompt | query history |

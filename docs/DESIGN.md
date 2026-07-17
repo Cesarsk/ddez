@@ -126,19 +126,18 @@ completion (facet API, rate-limited) is a possible later opt-in mode.
 2. **Live log tail** (bounded polling + backoff — must not blow the 300/h logs
    budget) **+ log → surrounding-context** (±N min, same host; needs
    absolute-time-range plumbing through the fetch path).
-3. **Remaining incident verbs**: timeline note, assign commander. Unlike state
-   and severity (single-value field patches, shipped via `r`/`v`), these are
-   add-a-note / relationship writes needing their own request shapes.
-   Confirm-gated like every other write.
 
 ### Longer-term
 
-4. **Token rotation** on an existing context — folds into `ike auth login
+3. **Token rotation** on an existing context — folds into `ike auth login
    --context <existing>` (re-auth updates the keychain token in place), so no
    separate key/flow is needed once auth login lands.
-5. Bulk select + act (mute N monitors / resolve N incidents) behind one confirm.
-6. Hardened incidents field mapping (union types; verify against a live org).
-7. **`:services` stats** — requests/error-rate/p95 per service would need either
+4. Bulk select + act (mute N monitors / resolve N incidents) behind one confirm.
+5. **Incident timeline note** — a free-text timeline comment is **not** in the
+   official client (only to-dos and attachments are; the timeline is an internal
+   API). Shipped `T` (add to-do) as the feasible annotate-the-incident verb;
+   a true note waits on an official endpoint.
+6. **`:services` stats** — requests/error-rate/p95 per service would need either
    the internal service-stats endpoint (not in the official client) or a
    trace-metrics query (per-operation, no clean per-service rollup); revisit if
    the metrics path proves viable. For now `:services` is names + enter→traces.
@@ -183,7 +182,11 @@ runtime via `applyTheme`), ~~APM services view~~ (`:services` — service list v
 `APMApi.GetServiceList` scoped by env (`/` = env, default `prod`), `enter` →
 traces `service:<name>`; names only — the official API exposes no per-service
 stats, and it's retention-independent unlike the span-aggregate it replaced,
-which showed empty on orgs with tight span retention).
+which showed empty on orgs with tight span retention), ~~incident commander~~
+(`I` — take command / assign commander to you, confirm-gated), ~~incident
+to-do~~ (`T` — add an action item, assigned to you), ~~hardened incident field
+mapping~~ (`incidentField` handles both the single- and multi-value arms of the
+field union + missing fields, so custom fields don't blank SEV/STATE).
 
 ## Traces & correlation
 

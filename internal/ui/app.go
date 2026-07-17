@@ -29,6 +29,7 @@ const (
 	promptFilter
 	promptSaveQuery // naming the current query for the 'Q' picker
 	promptSettings  // typing a TTL/columns value in the :settings editor
+	promptTodo      // typing an incident to-do's content ('T')
 )
 
 // ContextInfo describes one selectable Datadog org context for the :ctx view.
@@ -128,6 +129,8 @@ type App struct {
 	settingsTbl *tview.Table // the :settings editor
 	settingRows []settingRow // editable settings, indexed by table data row
 	editingSet  int          // settingRows index being edited (prompt in flight)
+
+	todoIncidentID string // incident awaiting a to-do (content prompt in flight)
 
 	colPick      *tview.List // the 'C' column picker
 	colPickView  string      // view whose columns the picker is editing
@@ -424,7 +427,7 @@ func (a *App) setHints() {
 		case "slos":
 			lines = append(lines, "[gray]<enter>error budget  <t>cycle type filter  <s>sort <S>reverse")
 		case "incidents":
-			lines = append(lines, "[gray]<r>state  <v>severity  quick: <1>active <2>stable <3>resolved <0>all  <s>sort")
+			lines = append(lines, "[gray]<r>state  <v>severity  <I>commander  <T>to-do  quick: <1>active <2>stable <3>resolved <0>all")
 		case "downtimes":
 			lines = append(lines, "[gray]<x>cancel downtime  <s>sort <S>reverse")
 		case "logs":
@@ -478,6 +481,8 @@ func (a *App) buildHelp() tview.Primitive {
    [aqua]m[white]             (monitor) mute / unmute — behind a confirmation
    [aqua]r[white]             (incident) change state (active/stable/resolved) — behind a confirm
    [aqua]v[white]             (incident) change severity (SEV-1…SEV-5) — behind a confirm
+   [aqua]I[white]             (incident) take command — assign commander to you — behind a confirm
+   [aqua]T[white]             (incident) add a to-do (action item, assigned to you)
    [aqua]x[white]             (downtime) cancel the selected downtime — behind a confirm
    [aqua]c[white]             copy the row's URL / query / id to the clipboard
    [aqua]ctrl-r[white]        force refresh (bypasses cache — spends API budget)
@@ -809,6 +814,21 @@ func (a *App) keys(ev *tcell.EventKey) *tcell.EventKey {
 			}
 			return nil
 		}
+	case 'I':
+		if a.res.Key == "incidents" {
+			if row, ok := a.selectedRow(); ok {
+				a.confirmAssignCommander(row)
+			}
+			return nil
+		}
+	case 'T':
+		if a.res.Key == "incidents" {
+			if row, ok := a.selectedRow(); ok {
+				a.todoIncidentID = row.ID
+				a.openPrompt(promptTodo)
+			}
+			return nil
+		}
 	case 'x':
 		if a.res.Key == "downtimes" {
 			if row, ok := a.selectedRow(); ok {
@@ -1067,6 +1087,8 @@ func (a *App) openPrompt(m promptMode) {
 			a.prompt.SetLabel(" " + s.label + "> ")
 			prefill = a.settingRawValue(s)
 		}
+	case m == promptTodo:
+		a.prompt.SetLabel(" to-do for " + a.todoIncidentID + "> ")
 	case a.res.ServerQuery:
 		a.prompt.SetLabel(" query> ")
 		prefill = a.queries[a.res.Key] // edit the current query, don't retype
@@ -1140,6 +1162,10 @@ func (a *App) promptDone(key tcell.Key) {
 		}
 	case promptSettings:
 		a.applySettingInput(text)
+	case promptTodo:
+		if text != "" && a.todoIncidentID != "" {
+			a.addTodo(a.todoIncidentID, text)
+		}
 	}
 }
 
@@ -1966,6 +1992,68 @@ func (a *App) applyIncidentField(r data.Row, field, value, ok string) {
 			if a.res.Key == "incidents" && a.page == "table" {
 				a.load(true) // cache was dropped; re-fetch to show the change
 			}
+		})
+	}()
+}
+
+// confirmAssignCommander offers to make the current user the incident's
+// commander ("take command"), behind a confirmation modal (a write path). The
+// current user is fetched first so the modal can name who's being assigned.
+func (a *App) confirmAssignCommander(r data.Row) {
+	a.flash("fetching current user …", false)
+	go func() {
+		u, err := a.provider.CurrentUser(context.Background())
+		a.QueueUpdateDraw(func() {
+			if err != nil {
+				a.flash("✗ current user: "+err.Error(), true)
+				return
+			}
+			a.showConfirm(
+				fmt.Sprintf("Assign %s commander to %s?\nThis writes to Datadog.", r.ID, u.Handle),
+				[]string{"Cancel", "Assign to me"},
+				func(label string) {
+					if label != "Assign to me" {
+						return
+					}
+					a.applyAssignCommander(r, u)
+				})
+		})
+	}()
+}
+
+func (a *App) applyAssignCommander(r data.Row, u data.User) {
+	a.flash("assigning "+r.ID+" commander …", false)
+	go func() {
+		err := a.provider.SetIncidentCommander(context.Background(), r.ID, u.ID)
+		a.QueueUpdateDraw(func() {
+			if err != nil {
+				slog.Error("assign commander failed", "id", r.ID, "user", u.ID, "err", err)
+				a.flash("✗ "+err.Error(), true)
+				return
+			}
+			// No commander column in the list, so nothing to reload — the
+			// cache drop (Cached) keeps the detail view fresh; leave the flash.
+			a.flash(r.ID+" commander → "+u.Handle, false)
+		})
+	}()
+}
+
+// addTodo creates the incident to-do typed at the prompt, assigned to the
+// current user (the API requires an assignee).
+func (a *App) addTodo(incidentID, content string) {
+	a.flash("adding to-do to "+incidentID+" …", false)
+	go func() {
+		u, err := a.provider.CurrentUser(context.Background())
+		if err == nil {
+			err = a.provider.AddIncidentTodo(context.Background(), incidentID, content, u.Handle)
+		}
+		a.QueueUpdateDraw(func() {
+			if err != nil {
+				slog.Error("add to-do failed", "id", incidentID, "err", err)
+				a.flash("✗ "+err.Error(), true)
+				return
+			}
+			a.flash("to-do added to "+incidentID, false)
 		})
 	}()
 }

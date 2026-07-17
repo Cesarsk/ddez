@@ -79,6 +79,20 @@ func TestAppSmoke(t *testing.T) {
 	press(sim, tcell.KeyEnter)
 	waitFor(t, sim, "IR-142 SEV-2 resolved")
 
+	// Incident commander: I fetches the current user, confirms, assigns.
+	typeRunes(sim, "I")
+	waitFor(t, sim, "Assign to me") // confirm modal button (question text wraps)
+	press(sim, tcell.KeyRight)      // Cancel → Assign to me
+	press(sim, tcell.KeyEnter)
+	waitFor(t, sim, "commander → demo.user")
+
+	// Incident to-do: T prompts for content, then creates it (assigned to me).
+	typeRunes(sim, "T")
+	waitFor(t, sim, "to-do for IR-142")
+	typeRunes(sim, "failover the primary")
+	press(sim, tcell.KeyEnter)
+	waitFor(t, sim, "to-do added to IR-142")
+
 	// Incident quick filter: digit 3 = resolved only (STATE column).
 	typeRunes(sim, "3")
 	waitFor(t, sim, "Incidents(state:resolved)")

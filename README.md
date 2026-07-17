@@ -144,6 +144,8 @@ contexts:
 | `↑`/`↓` | (in the `/` prompt) recall previous queries for this view |
 | `r` | on an incident: **change its state** (active/stable/resolved) — behind a confirmation |
 | `v` | on an incident: **change its severity** (SEV-1…SEV-5) — behind a confirmation |
+| `I` | on an incident: **take command** — assign the commander to you — behind a confirmation |
+| `T` | on an incident: **add a to-do** (action item, assigned to you) |
 | `x` | on a downtime: **cancel** the selected downtime — behind a confirmation |
 | `m` | on a monitor: **mute / unmute** (toggles based on current state, via the monitor's `silenced` option, read-modify-write) — behind a confirmation. Mute status shows in the **MUTED** column, independent of alert state |
 | `c` | **copy** the selected row's web URL (or log query / id) to the clipboard |

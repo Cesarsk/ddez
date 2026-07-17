@@ -545,6 +545,17 @@ func (d *Demo) CancelDowntime(_ context.Context, id string) error {
 	return nil
 }
 
+// CurrentUser returns a fixed demo user (offline; mirrors the live shape).
+func (d *Demo) CurrentUser(_ context.Context) (User, error) {
+	return User{ID: "demo-user", Handle: "demo.user"}, nil
+}
+
+// SetIncidentCommander / AddIncidentTodo are no-ops in demo mode: neither
+// commander nor to-dos surface in the incidents table, so there's nothing to
+// reflect — the write path is exercised, it just succeeds.
+func (d *Demo) SetIncidentCommander(_ context.Context, _, _ string) error { return nil }
+func (d *Demo) AddIncidentTodo(_ context.Context, _, _, _ string) error   { return nil }
+
 func (d *Demo) services() []Row {
 	// Names only, sorted — mirrors the live service-list endpoint (no per-
 	// service stats; the official API doesn't expose them).

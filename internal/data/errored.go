@@ -31,6 +31,9 @@ func (e *Errored) MonitorMetric(context.Context, string) (*MetricSeries, error) 
 func (e *Errored) SetIncidentField(context.Context, string, string, string) error { return e.err }
 func (e *Errored) SetMonitorMute(context.Context, string, bool) error             { return e.err }
 func (e *Errored) CancelDowntime(context.Context, string) error                   { return e.err }
+func (e *Errored) CurrentUser(context.Context) (User, error)                      { return User{}, e.err }
+func (e *Errored) SetIncidentCommander(context.Context, string, string) error     { return e.err }
+func (e *Errored) AddIncidentTodo(context.Context, string, string, string) error  { return e.err }
 func (e *Errored) Budget() []string                                               { return nil }
 func (e *Errored) Mode() string                                                   { return "live" }
 func (e *Errored) Site() string                                                   { return e.site }

@@ -97,6 +97,13 @@ type TraceView struct {
 	Truncated bool       // more spans than the fetch cap
 }
 
+// User is the acting user — used to assign an incident commander ('I') and as
+// the default assignee of an incident to-do ('T').
+type User struct {
+	ID     string
+	Handle string
+}
+
 // IncidentStates are the states an incident can be moved to via 'r'.
 var IncidentStates = []string{"active", "stable", "resolved"}
 
@@ -142,6 +149,14 @@ type Provider interface {
 	SetMonitorMute(ctx context.Context, id string, mute bool) error
 	// CancelDowntime cancels a scheduled/active downtime. Write; UI-gated.
 	CancelDowntime(ctx context.Context, id string) error
+	// CurrentUser returns the acting user (for commander/to-do assignment).
+	CurrentUser(ctx context.Context) (User, error)
+	// SetIncidentCommander assigns an incident's commander to a user. A write;
+	// UI-gated behind confirmation.
+	SetIncidentCommander(ctx context.Context, incidentID, userID string) error
+	// AddIncidentTodo adds a to-do (action item) to an incident, assigned to
+	// the given user handle. A write; UI-gated (the content prompt).
+	AddIncidentTodo(ctx context.Context, incidentID, content, assigneeHandle string) error
 	// Budget reports the last-seen API rate-limit state, one line per
 	// endpoint family (from X-RateLimit-* response headers).
 	Budget() []string

@@ -1,9 +1,12 @@
 package data
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV1"
+	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV2"
 )
 
 func TestMonitorLogQuery(t *testing.T) {
@@ -28,5 +31,46 @@ func TestMonitorLogQuery(t *testing.T) {
 	bare.SetTags([]string{"team:sre"})
 	if got := monitorLogQuery(bare); got != "" {
 		t.Errorf("no derivable query should be empty, got %q", got)
+	}
+}
+
+// TestCommanderUpdateBodyJSON asserts the wire shape of the commander-assign
+// request. The nested nullable-relationship construction can't be runtime-
+// tested from the sandbox, so this locks the JSON Datadog expects:
+// relationships.commander_user.data = {id, type: "users"}.
+func TestCommanderUpdateBodyJSON(t *testing.T) {
+	b, err := json.Marshal(commanderUpdateBody("inc-abc", "user-42"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(b)
+	for _, want := range []string{`"commander_user"`, `"data"`, `"id":"user-42"`, `"type":"users"`} {
+		if !strings.Contains(s, want) {
+			t.Errorf("commander body missing %q\n got: %s", want, s)
+		}
+	}
+}
+
+// TestIncidentFieldUnion covers both arms of the IncidentFieldAttributes union
+// plus a missing field — the hardening that keeps a real org's custom fields
+// from blanking the SEV/STATE columns.
+func TestIncidentFieldUnion(t *testing.T) {
+	sv := datadogV2.NewIncidentFieldAttributesSingleValue()
+	sv.SetValue("SEV-1")
+	mv := datadogV2.NewIncidentFieldAttributesMultipleValue()
+	mv.SetValue([]string{"payments", "trading"})
+
+	fields := map[string]datadogV2.IncidentFieldAttributes{
+		"severity": datadogV2.IncidentFieldAttributesSingleValueAsIncidentFieldAttributes(sv),
+		"teams":    datadogV2.IncidentFieldAttributesMultipleValueAsIncidentFieldAttributes(mv),
+	}
+	if got := incidentField(fields, "severity"); got != "SEV-1" {
+		t.Errorf("single-value = %q, want SEV-1", got)
+	}
+	if got := incidentField(fields, "teams"); got != "payments, trading" {
+		t.Errorf("multi-value = %q, want joined", got)
+	}
+	if got := incidentField(fields, "nope"); got != "" {
+		t.Errorf("missing field = %q, want empty", got)
 	}
 }

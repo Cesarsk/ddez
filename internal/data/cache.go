@@ -82,6 +82,27 @@ func (c *Cached) CancelDowntime(ctx context.Context, id string) error {
 	return nil
 }
 
+// CurrentUser is a passthrough (uncached — cheap, on-demand for a write).
+func (c *Cached) CurrentUser(ctx context.Context) (User, error) {
+	return c.p.CurrentUser(ctx)
+}
+
+// SetIncidentCommander writes through and drops the incidents cache so a
+// re-fetch reflects the change.
+func (c *Cached) SetIncidentCommander(ctx context.Context, incidentID, userID string) error {
+	if err := c.p.SetIncidentCommander(ctx, incidentID, userID); err != nil {
+		return err
+	}
+	c.dropResource("incidents")
+	return nil
+}
+
+// AddIncidentTodo writes through. To-dos don't surface in the incidents table,
+// so no cache eviction is needed.
+func (c *Cached) AddIncidentTodo(ctx context.Context, incidentID, content, assigneeHandle string) error {
+	return c.p.AddIncidentTodo(ctx, incidentID, content, assigneeHandle)
+}
+
 // dropResource evicts all cache entries for a resource key.
 func (c *Cached) dropResource(key string) {
 	c.mu.Lock()

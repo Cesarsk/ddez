@@ -265,6 +265,78 @@ func (l *Live) SetIncidentField(ctx context.Context, id, field, value string) er
 	return nil
 }
 
+// CurrentUser returns the acting user (GET /api/v2/current_user): its id drives
+// commander assignment, its handle is the default to-do assignee.
+func (l *Live) CurrentUser(ctx context.Context) (User, error) {
+	ctx = l.authCtx(ctx)
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	resp, httpresp, err := datadogV2.NewUsersApi(l.client).GetCurrentUser(ctx)
+	l.track(httpresp)
+	if err != nil {
+		return User{}, apiErr("current user", err)
+	}
+	u := resp.GetData()
+	attrs := u.GetAttributes()
+	handle := attrs.GetHandle()
+	if handle == "" {
+		handle = attrs.GetEmail()
+	}
+	return User{ID: u.GetId(), Handle: handle}, nil
+}
+
+// SetIncidentCommander assigns an incident's commander via the commander_user
+// relationship on UpdateIncident (a write; UI-gated).
+func (l *Live) SetIncidentCommander(ctx context.Context, incidentID, userID string) error {
+	ctx = l.authCtx(ctx)
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	body := commanderUpdateBody(incidentID, userID)
+	_, resp, err := datadogV2.NewIncidentsApi(l.client).UpdateIncident(ctx, incidentID, body)
+	l.track(resp)
+	if err != nil {
+		return apiErr("set incident commander", err)
+	}
+	slog.Info("incident commander assigned", "id", incidentID, "user", userID)
+	return nil
+}
+
+// commanderUpdateBody builds the UpdateIncident request that sets commander_user
+// to a user. Extracted so a test can assert its wire shape — the nested
+// nullable-relationship construction is easy to get subtly wrong and can't be
+// runtime-tested from the authoring sandbox.
+func commanderUpdateBody(incidentID, userID string) datadogV2.IncidentUpdateRequest {
+	relData := datadogV2.NewNullableRelationshipToUserData(userID, datadogV2.USERSTYPE_USERS)
+	rel := datadogV2.NewNullableRelationshipToUser(*datadogV2.NewNullableNullableRelationshipToUserData(relData))
+	rels := datadogV2.NewIncidentUpdateRelationships()
+	rels.CommanderUser = *datadogV2.NewNullableNullableRelationshipToUser(rel)
+	data := datadogV2.NewIncidentUpdateData(incidentID, datadogV2.INCIDENTTYPE_INCIDENTS)
+	data.SetRelationships(*rels)
+	return *datadogV2.NewIncidentUpdateRequest(*data)
+}
+
+// AddIncidentTodo adds a to-do (action item) to an incident, assigned to the
+// given user handle (the API requires at least one assignee).
+func (l *Live) AddIncidentTodo(ctx context.Context, incidentID, content, assigneeHandle string) error {
+	ctx = l.authCtx(ctx)
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	assignee := datadogV2.IncidentTodoAssigneeHandleAsIncidentTodoAssignee(&assigneeHandle)
+	attrs := datadogV2.NewIncidentTodoAttributes([]datadogV2.IncidentTodoAssignee{assignee}, content)
+	data := datadogV2.NewIncidentTodoCreateData(*attrs, datadogV2.INCIDENTTODOTYPE_INCIDENT_TODOS)
+	body := datadogV2.NewIncidentTodoCreateRequest(*data)
+
+	_, resp, err := datadogV2.NewIncidentsApi(l.client).CreateIncidentTodo(ctx, incidentID, *body)
+	l.track(resp)
+	if err != nil {
+		return apiErr("add incident to-do", err)
+	}
+	slog.Info("incident to-do added", "id", incidentID, "assignee", assigneeHandle)
+	return nil
+}
+
 // SetMonitorMute mutes (indefinitely) or unmutes a monitor. It is a
 // read-modify-write on the monitor's options so muting never clobbers
 // thresholds, renotify, or any other option: fetch the monitor, flip only
@@ -621,6 +693,11 @@ func (l *Live) incidents(ctx context.Context) ([]Row, error) {
 	return rows, nil
 }
 
+// incidentField reads an incident field value, handling both arms of the
+// IncidentFieldAttributes union: single-value fields (state, severity) return
+// their value; multi-value fields (multiselect custom fields) join their
+// values. A missing field or an unparsed variant yields "" rather than
+// breaking the row — real orgs carry custom fields of either shape.
 func incidentField(fields map[string]datadogV2.IncidentFieldAttributes, key string) string {
 	f, ok := fields[key]
 	if !ok {
@@ -628,6 +705,9 @@ func incidentField(fields map[string]datadogV2.IncidentFieldAttributes, key stri
 	}
 	if sv := f.IncidentFieldAttributesSingleValue; sv != nil {
 		return sv.GetValue()
+	}
+	if mv := f.IncidentFieldAttributesMultipleValue; mv != nil {
+		return strings.Join(mv.GetValue(), ", ")
 	}
 	return ""
 }
