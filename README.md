@@ -29,7 +29,8 @@ drill down, `esc` to go back.
 > **Status: real-org validated.** Eight views (monitors, incidents, SLOs,
 > logs, traces, events, downtimes, dashboards), log⇄trace correlation with a
 > unified request timeline, multi-org contexts, confirm-gated writes (mute
-> monitor, incident state + severity, cancel downtime), demo mode. See
+> monitor, incident state + severity, cancel downtime), demo mode. New here?
+> The **[User Manual](docs/MANUAL.md)** is a full walkthrough. See also
 > [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for diagrams and
 > [docs/DESIGN.md](docs/DESIGN.md) for decisions and roadmap.
 
