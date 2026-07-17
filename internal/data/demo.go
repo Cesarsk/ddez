@@ -546,30 +546,15 @@ func (d *Demo) CancelDowntime(_ context.Context, id string) error {
 }
 
 func (d *Demo) services() []Row {
-	svcs := []struct {
-		name   string
-		reqs   int
-		errPct float64
-		p95us  int64
-	}{ // busiest first, mirroring the live view's request-count ordering
-		{"postgres", 61200, 0.1, 12_000},
-		{"kong-proxy", 48213, 0.4, 42_000},
-		{"payments-api", 15904, 2.1, 310_000},
-		{"trading-engine", 9021, 0.0, 88_000},
-		{"onboarding-web", 3308, 5.7, 540_000},
-		{"vault", 1204, 0.0, 6_000},
-	}
-	rows := make([]Row, 0, len(svcs))
-	for _, s := range svcs {
+	// Names only, sorted — mirrors the live service-list endpoint (no per-
+	// service stats; the official API doesn't expose them).
+	names := []string{"kong-proxy", "onboarding-web", "payments-api", "postgres", "trading-engine", "vault"}
+	rows := make([]Row, 0, len(names))
+	for _, n := range names {
 		rows = append(rows, Row{
-			ID: s.name,
-			Cells: []string{
-				s.name,
-				fmt.Sprintf("%d", s.reqs),
-				fmt.Sprintf("%.1f%%", s.errPct),
-				FormatDuration(s.p95us),
-			},
-			URL: WebBase(d.site) + "/apm/services/" + s.name,
+			ID:    n,
+			Cells: []string{n},
+			URL:   WebBase(d.site) + "/apm/services/" + n,
 		})
 	}
 	return rows

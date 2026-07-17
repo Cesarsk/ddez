@@ -123,7 +123,7 @@ Switch to any view with `:` + its name or a shorter alias.
 | **SLOs** | `:slos` `:slo` `:s` | Name, type, target, timeframe, tags. |
 | **Logs** | `:logs` `:log` `:l` | Time, status, service, host, message — server-side search. |
 | **Traces** | `:traces` `:tr` `:apm` `:spans` | APM spans: time, service, resource, duration, error, trace id. |
-| **Services** | `:services` `:svc` | APM service health: requests, error rate, p95 latency. `enter` → that service's traces. |
+| **Services** | `:services` `:svc` | Your APM services for an env (`/` sets the env, default `prod`); `enter` → that service's traces. |
 | **Events** | `:events` `:ev` | The change stream: deploys, alerts, config changes. |
 | **Downtimes** | `:downtimes` `:dt` `:mutes` | Scheduled/active monitor mutes: status, scope, message, created. |
 | **Dashboards** | `:dashboards` `:dash` `:d` | Title, layout, author, modified. |
@@ -138,12 +138,14 @@ Switch to any view with `:` + its name or a shorter alias.
   `r` → change state; `v` → change severity.
 - **SLOs** — `enter` shows live **attainment + error budget**; `t` cycles the
   type filter (metric / monitor / time_slice / all).
-- **Logs / Traces / Events / Services** — `/` is a Datadog query; `1`–`5` set
-  the time window (15m / 1h / 4h / 1d / 7d). Logs also: `P` patterns, `t` → trace.
-- **Services** — `enter` → that service's traces (`service:<name>`); `/` filters
-  the aggregate (e.g. `env:prod`). Rows are the busiest services first. Note:
-  the error-rate column depends on a span error-filter still being validated
-  against live orgs, so treat ERR% as indicative until confirmed.
+- **Logs / Traces / Events** — `/` is a Datadog query; `1`–`5` set the time
+  window (15m / 1h / 4h / 1d / 7d). Logs also: `P` patterns, `t` → trace.
+- **Services** — lists your APM services for an environment; `/` sets the env
+  (default `prod`), `enter` → that service's traces (`service:<name>`). Names
+  only: Datadog's official API doesn't expose per-service request/error/latency
+  stats to third-party clients. The list comes from the service catalog (trace
+  stats), so it's populated even when span retention is tight — unlike a raw
+  span search.
 - **Dashboards** — `enter` renders the widgets as a **grid of sparklines**
   matching the Datadog layout; `ctrl-r` re-fetches.
 - **Downtimes** — `x` cancels the selected downtime.
@@ -168,9 +170,9 @@ The three views interconnect by `trace_id`. The jump needs APM log-injection
 (the `trace_id` present on your logs); a log without one gives you a clear "no
 trace_id" message rather than a broken jump.
 
-You can also enter the loop from the top: **`:services`** → `enter` on the
-worst-looking service (high ERR% or p95) → its **traces** → a failing trace →
-its **logs**. Same loop, started from the service overview instead of a monitor.
+You can also enter the loop from the top: **`:services`** → `enter` on a
+service → its **traces** → a failing trace → its **logs**. Same loop, started
+from the service list instead of a monitor.
 
 ---
 

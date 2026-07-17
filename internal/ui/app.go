@@ -432,7 +432,7 @@ func (a *App) setHints() {
 		case "traces":
 			lines = append(lines, "[gray]</>query  <t>trace waterfall  <l>logs for trace  <Q>saved  window: <1>15m..<5>7d")
 		case "services":
-			lines = append(lines, "[gray]<enter>traces for service  </>query (e.g. env:prod)  window: <1>15m..<5>7d  <s>sort")
+			lines = append(lines, "[gray]<enter>traces for service  </>env (default prod)  <s>sort <S>reverse")
 		case "events":
 			lines = append(lines, "[gray]</>query  <Q>saved  window: <1>15m..<5>7d  <s>sort   (deploys, alerts, changes)")
 		case ctxResource.Key:
@@ -742,7 +742,7 @@ func (a *App) keys(ev *tcell.EventKey) *tcell.EventKey {
 			a.quickFilter(ev.Rune())
 			return nil
 		}
-		if a.res.Key == "logs" || a.res.Key == "traces" || a.res.Key == "events" || a.res.Key == "services" {
+		if a.res.Key == "logs" || a.res.Key == "traces" || a.res.Key == "events" {
 			a.setLogRange(ev.Rune())
 			return nil
 		}
@@ -751,7 +751,7 @@ func (a *App) keys(ev *tcell.EventKey) *tcell.EventKey {
 			return nil
 		}
 	case '5':
-		if a.res.Key == "logs" || a.res.Key == "traces" || a.res.Key == "events" || a.res.Key == "services" {
+		if a.res.Key == "logs" || a.res.Key == "traces" || a.res.Key == "events" {
 			a.setLogRange(ev.Rune())
 			return nil
 		}

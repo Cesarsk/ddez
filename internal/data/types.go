@@ -189,10 +189,12 @@ func Resources() []Resource {
 			TTL:     60 * time.Second, ServerQuery: true, DefaultQuery: "*",
 		},
 		{
+			// The '/' query is the APM env filter (the service-list endpoint is
+			// env-scoped), not a span query — default "prod", override with /.
 			Key: "services", Title: "Services",
 			Aliases: []string{"services", "service", "svc"},
-			Columns: []string{"SERVICE", "REQUESTS", "ERR%", "P95"},
-			TTL:     60 * time.Second, ServerQuery: true, DefaultQuery: "*",
+			Columns: []string{"SERVICE"},
+			TTL:     60 * time.Second, ServerQuery: true, DefaultQuery: "prod",
 		},
 		{
 			Key: "events", Title: "Events",

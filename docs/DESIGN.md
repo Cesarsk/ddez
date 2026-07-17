@@ -138,8 +138,10 @@ completion (facet API, rate-limited) is a possible later opt-in mode.
    separate key/flow is needed once auth login lands.
 5. Bulk select + act (mute N monitors / resolve N incidents) behind one confirm.
 6. Hardened incidents field mapping (union types; verify against a live org).
-7. **`:services` ERR% error-filter** — the span error query (`status:error`) is
-   a best-effort guess pending live validation; confirm/adjust against a real org.
+7. **`:services` stats** — requests/error-rate/p95 per service would need either
+   the internal service-stats endpoint (not in the official client) or a
+   trace-metrics query (per-operation, no clean per-service rollup); revisit if
+   the metrics path proves viable. For now `:services` is names + enter→traces.
 
 ### Deferred deliberately
 
@@ -177,9 +179,11 @@ column picker: `space` show/hide + `J`/`K` reorder, live + saved), ~~themes/
 skins~~ (`theme`: default/mono/nord/solarized), ~~saved queries per context~~
 (`Q` picker — save/apply/delete, persisted per context), ~~`:settings` editor~~
 (theme + per-view TTL edited live and saved to config; theme re-applied at
-runtime via `applyTheme`), ~~APM services view~~ (`:services` — per-service
-requests/ERR%/p95 via three bounded `AggregateSpans` calls, `enter` → traces
-`service:<name>`; ERR% error-filter pending live validation).
+runtime via `applyTheme`), ~~APM services view~~ (`:services` — service list via
+`APMApi.GetServiceList` scoped by env (`/` = env, default `prod`), `enter` →
+traces `service:<name>`; names only — the official API exposes no per-service
+stats, and it's retention-independent unlike the span-aggregate it replaced,
+which showed empty on orgs with tight span retention).
 
 ## Traces & correlation
 
