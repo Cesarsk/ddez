@@ -246,7 +246,16 @@ func (l *Live) FetchDetail(ctx context.Context, key, id string) (any, error) {
 		if err != nil {
 			return nil, apiErr("monitor detail", err)
 		}
-		return m, nil
+		prio := ""
+		if p, ok := m.GetPriorityOk(); ok && p != nil {
+			prio = fmt.Sprintf("P%d", *p)
+		}
+		return &MonitorDetail{
+			Name: m.GetName(), State: string(m.GetOverallState()),
+			Type: string(m.GetType()), Priority: prio,
+			Query: m.GetQuery(), Message: m.GetMessage(), Tags: m.GetTags(),
+			Monitor: m,
+		}, nil
 	case "dashboards":
 		d, resp, err := datadogV1.NewDashboardsApi(l.client).GetDashboard(ctx, id)
 		l.track(resp)

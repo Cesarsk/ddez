@@ -3,14 +3,19 @@ package ui
 import "testing"
 
 func TestResolveTheme(t *testing.T) {
-	if got := ResolveTheme(""); got.Name != "default" {
-		t.Errorf("empty → %q, want default", got.Name)
+	// "ike" is the signature look: empty and unknown names resolve to it;
+	// `theme: default` still restores the original palette.
+	if got := ResolveTheme(""); got.Name != "ike" {
+		t.Errorf("empty → %q, want ike", got.Name)
 	}
 	if got := ResolveTheme("MoNo"); got.Name != "mono" { // case-insensitive
 		t.Errorf("MoNo → %q, want mono", got.Name)
 	}
-	if got := ResolveTheme("does-not-exist"); got.Name != "default" {
-		t.Errorf("unknown → %q, want default fallback", got.Name)
+	if got := ResolveTheme("does-not-exist"); got.Name != "ike" {
+		t.Errorf("unknown → %q, want ike fallback", got.Name)
+	}
+	if got := ResolveTheme("default"); got.Name != "default" {
+		t.Errorf("default → %q, want the original palette", got.Name)
 	}
 }
 

@@ -189,6 +189,12 @@ type App struct {
 
 	confirmReturn string // page to restore after a confirm modal closes
 
+	// fuzzy: the 'F' fuzzy row finder (type to match, enter jumps to the row)
+	fuzzyFlex  *tview.Flex
+	fuzzyInput *tview.InputField
+	fuzzyList  *tview.List
+	fuzzyRows  []int // a.rows indices backing the list, in display order
+
 	res      data.Resource
 	rows     []data.Row
 	filtered []int
@@ -327,6 +333,14 @@ func (a *App) applyTheme() {
 		a.todoList.SetTitleColor(a.theme.Title)
 		a.todoList.SetSelectedStyle(sel)
 	}
+	if a.fuzzyFlex != nil {
+		a.fuzzyFlex.SetBorderColor(a.theme.Border)
+		a.fuzzyFlex.SetTitleColor(a.theme.Title)
+		a.fuzzyInput.SetLabelColor(a.theme.Label)
+		a.fuzzyInput.SetFieldBackgroundColor(a.theme.FieldBg)
+		a.fuzzyInput.SetFieldTextColor(a.theme.FieldFg)
+		a.fuzzyList.SetSelectedStyle(sel)
+	}
 	a.ctxForm.SetTitleColor(a.theme.Title)
 	a.ctxForm.SetBorderColor(a.theme.Border)
 	a.ctxForm.SetFieldBackgroundColor(a.theme.FieldBg)
@@ -449,6 +463,16 @@ func (a *App) build() {
 		AddItem(a.userPick, 0, 1, false)
 	a.userPickFlex.SetBorder(true).SetTitle(" Assign ")
 
+	// fuzzy: search field over ranked row matches. See fuzzy.go.
+	a.fuzzyInput = tview.NewInputField().SetLabel(" fuzzy> ")
+	a.fuzzyInput.SetChangedFunc(func(string) { a.renderFuzzy() })
+	a.fuzzyList = tview.NewList().ShowSecondaryText(false)
+	a.fuzzyList.SetMainTextColor(tcell.ColorWhite)
+	a.fuzzyFlex = tview.NewFlex().SetDirection(tview.FlexRow).
+		AddItem(a.fuzzyInput, 1, 0, true).
+		AddItem(a.fuzzyList, 0, 1, false)
+	a.fuzzyFlex.SetBorder(true).SetTitle(" Fuzzy find ")
+
 	// todos: the incident to-do panel. See todos.go.
 	a.todoList = tview.NewList().ShowSecondaryText(true)
 	a.todoList.SetBorder(true)
@@ -489,6 +513,7 @@ func (a *App) build() {
 		AddPage("colpick", a.colPick, true, false).
 		AddPage("userpick", a.userPickFlex, true, false).
 		AddPage("todos", a.todoList, true, false).
+		AddPage("fuzzy", a.fuzzyFlex, true, false).
 		AddPage("help", a.buildHelp(), true, false).
 		AddPage("ctxform", ctxFormFlex, true, false).
 		AddPage("confirm", a.confirm, true, false)
@@ -824,6 +849,22 @@ func (a *App) keys(ev *tcell.EventKey) *tcell.EventKey {
 			return nil
 		}
 		return ev // the list handles ↑/↓ j/k navigation
+	case "fuzzy":
+		switch {
+		case ev.Key() == tcell.KeyEscape:
+			a.closeFuzzy(false)
+			return nil
+		case ev.Key() == tcell.KeyEnter:
+			a.closeFuzzy(true)
+			return nil
+		case ev.Key() == tcell.KeyUp:
+			a.fuzzyMove(-1)
+			return nil
+		case ev.Key() == tcell.KeyDown:
+			a.fuzzyMove(1)
+			return nil
+		}
+		return ev // everything else types into the query
 	case "userpick":
 		// A text-entry modal: esc/enter/arrows are actions; every other key
 		// types into the search field (so ':' etc. are searchable, not commands).
@@ -955,6 +996,11 @@ func (a *App) keys(ev *tcell.EventKey) *tcell.EventKey {
 	case 'c':
 		a.copySelected()
 		return nil
+	case 'F':
+		if a.res.Key != ctxResource.Key {
+			a.openFuzzy()
+			return nil
+		}
 	case ' ':
 		if a.res.Key == ctxResource.Key {
 			if row, ok := a.selectedRow(); ok {
@@ -2018,6 +2064,8 @@ func (a *App) showPage(page string) {
 		a.SetFocus(a.userSearch) // typing filters; keys handler routes ↑/↓/enter
 	case "todos":
 		a.SetFocus(a.todoList)
+	case "fuzzy":
+		a.SetFocus(a.fuzzyInput)
 	case "ctxform":
 		a.SetFocus(a.ctxForm)
 	default:
@@ -3211,9 +3259,13 @@ func (a *App) openDetail(tableRow int) {
 				body = jsonIndent(full)
 			}
 		case "monitors":
-			// Prepend the evaluated metric as a sparkline — the data behind the
-			// alert, so the detail answers "why is it firing?".
-			body = jsonIndent(full)
+			// Structured header + the evaluated metric sparkline — the data
+			// behind the alert, so the detail answers "why is it firing?".
+			if d, ok := full.(*data.MonitorDetail); ok {
+				body = monitorDetailBody(d) + jsonIndent(d.Monitor)
+			} else {
+				body = jsonIndent(full)
+			}
 			if ms, mErr := a.providerFor(r).MonitorMetric(context.Background(), r.ID); mErr == nil {
 				body = monitorMetricHeader(ms) + body
 			}
@@ -3313,6 +3365,32 @@ func warRoomBody(id string, d *data.IncidentDetail, impacts []string, todos []da
 		sort.Strings(keys)
 		for _, k := range keys {
 			fmt.Fprintf(&b, "  %-13s%s\n", k+":", d.Fields[k])
+		}
+	}
+	b.WriteString("\n── raw ──\n")
+	return b.String()
+}
+
+// monitorDetailBody renders the structured monitor header: identity, config
+// and the alert message (runbook links live there), above the raw object.
+func monitorDetailBody(d *data.MonitorDetail) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "━━ %s ━━\n\n", d.Name)
+	fmt.Fprintf(&b, "  %-10s%s", "state:", d.State)
+	if d.Priority != "" {
+		fmt.Fprintf(&b, " · %s", d.Priority)
+	}
+	fmt.Fprintf(&b, " · %s\n", d.Type)
+	if d.Query != "" {
+		fmt.Fprintf(&b, "  %-10s%s\n", "query:", d.Query)
+	}
+	if len(d.Tags) > 0 {
+		fmt.Fprintf(&b, "  %-10s%s\n", "tags:", strings.Join(d.Tags, " "))
+	}
+	if d.Message != "" {
+		b.WriteString("\n── message ──\n")
+		for _, line := range strings.Split(strings.TrimSpace(d.Message), "\n") {
+			b.WriteString("  " + line + "\n")
 		}
 	}
 	b.WriteString("\n── raw ──\n")

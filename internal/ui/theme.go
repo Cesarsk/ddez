@@ -26,8 +26,16 @@ type Theme struct {
 	Dim      string // secondary notes in dynamic text (default "gray")
 }
 
-// themes are the built-in palettes. "default" preserves the original look.
+// themes are the built-in palettes. "ike" is the signature look (and what an
+// unset theme resolves to); "default" preserves the original pre-identity look.
 var themes = map[string]Theme{
+	"ike": {
+		Name: "ike", Border: tcell.ColorCoral, Title: tcell.ColorLightSalmon,
+		SelectBg: tcell.ColorDarkSlateGray, SelectFg: tcell.ColorWhite,
+		FieldBg: tcell.ColorBlack, FieldFg: tcell.ColorMediumTurquoise,
+		Label: tcell.ColorCoral, Button: tcell.ColorCoral,
+		Accent: "coral", Key: "mediumturquoise", Dim: "gray",
+	},
 	"default": {
 		Name: "default", Border: tcell.ColorDodgerBlue, Title: tcell.ColorOrange,
 		SelectBg: tcell.ColorDarkSlateGray, SelectFg: tcell.ColorWhite,
@@ -59,15 +67,16 @@ var themes = map[string]Theme{
 }
 
 // ThemeNames lists the built-in theme names (for docs/validation).
-var ThemeNames = []string{"default", "mono", "nord", "solarized"}
+var ThemeNames = []string{"ike", "default", "mono", "nord", "solarized"}
 
-// ResolveTheme returns the named palette, or "default" if name is empty or
-// unknown — an unrecognised theme should never break the UI.
+// ResolveTheme returns the named palette. Empty or unknown names resolve to
+// "ike" (the signature look) — an unrecognised theme should never break the
+// UI, and `theme: default` restores the original palette.
 func ResolveTheme(name string) Theme {
 	if t, ok := themes[strings.ToLower(strings.TrimSpace(name))]; ok {
 		return t
 	}
-	return themes["default"]
+	return themes["ike"]
 }
 
 // recolor rewrites the canonical dynamic-colour tags used when building header,

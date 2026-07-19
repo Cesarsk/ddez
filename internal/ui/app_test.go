@@ -34,10 +34,10 @@ func TestAppSmoke(t *testing.T) {
 	// open and enter cycles the theme live (default → mono → nord); esc returns.
 	typeCmd(sim, ":settings")
 	waitFor(t, sim, "enter cycles") // settings-only text: the page is open
+	press(sim, tcell.KeyEnter)      // ike (signature default) → default
+	waitFor(t, sim, "theme: default")
 	press(sim, tcell.KeyEnter)
 	waitFor(t, sim, "theme: mono")
-	press(sim, tcell.KeyEnter)
-	waitFor(t, sim, "theme: nord")
 	// ':' must open command mode from the settings page too (not only esc).
 	typeCmd(sim, ":monitors")
 	waitFor(t, sim, "Monitors(all)")
@@ -51,6 +51,24 @@ func TestAppSmoke(t *testing.T) {
 	waitFor(t, sim, "[ ] MUTED")
 	typeRunes(sim, " ") // show it again — leave the table as we found it
 	waitFor(t, sim, "[x] MUTED")
+	press(sim, tcell.KeyEscape)
+	waitFor(t, sim, "Monitors(all)")
+
+	// Fuzzy finder: F opens it, typing ranks rows, enter jumps the selection.
+	typeRunes(sim, "F")
+	waitFor(t, sim, "Fuzzy find · Monitors")
+	typeRunes(sim, "vlt sld") // subsequence of "Vault sealed"
+	waitFor(t, sim, "Vault sealed")
+	press(sim, tcell.KeyEnter)
+	waitFor(t, sim, "Monitors(all)")
+
+	// Monitor detail: structured header (state/query/message) above the raw
+	// object, with the metric sparkline on top.
+	press(sim, tcell.KeyEnter)
+	waitFor(t, sim, "metric (last 1h)")
+	waitFor(t, sim, "state:")
+	waitFor(t, sim, "── message ──")
+	waitFor(t, sim, "Runbook:")
 	press(sim, tcell.KeyEscape)
 	waitFor(t, sim, "Monitors(all)")
 
@@ -348,7 +366,7 @@ func TestAppSmoke(t *testing.T) {
 	waitFor(t, sim, "Monitor/")
 	waitFor(t, sim, "<esc>back")        // context hints visible in detail view
 	waitFor(t, sim, "metric (last 1h)") // monitor detail shows the metric sparkline
-	waitFor(t, sim, "full_object")      // and the on-demand full object below it
+	waitFor(t, sim, "── message ──")    // and the on-demand structured detail below it
 	typeRunes(sim, "?")
 	waitFor(t, sim, "NAVIGATION")
 	press(sim, tcell.KeyEscape) // help → back to detail, not to table

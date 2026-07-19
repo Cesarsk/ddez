@@ -176,7 +176,22 @@ func (d *Demo) FetchDetail(_ context.Context, key, id string) (any, error) {
 				"note":        "demo: in live mode this is the complete incident fetched on demand (fields, timeline …)",
 			},
 		}, nil
-	case "monitors", "dashboards":
+	case "monitors":
+		d.mu.Lock()
+		defer d.mu.Unlock()
+		for _, m := range d.mons {
+			if fmt.Sprintf("%d", m.id) == id {
+				return &MonitorDetail{
+					Name: m.name, State: m.state, Type: m.typ, Priority: m.prio,
+					Query:   "avg(last_5m):avg:system.cpu.user{...} > 90",
+					Message: "Runbook: https://wiki.example.com/runbooks/" + strings.ReplaceAll(strings.ToLower(m.name), " ", "-"),
+					Tags:    strings.Split(m.tags, ","),
+					Monitor: map[string]any{"id": m.id, "full_object": true},
+				}, nil
+			}
+		}
+		return nil, nil
+	case "dashboards":
 		return map[string]any{
 			"id":          id,
 			"resource":    key,
