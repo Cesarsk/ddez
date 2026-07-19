@@ -170,6 +170,19 @@ type SLODetail struct {
 	Note     string
 }
 
+// MonitorDetail is the structured monitor detail: identity, config and the
+// alert message, with the raw object kept for completeness.
+type MonitorDetail struct {
+	Name     string
+	State    string
+	Type     string
+	Priority string
+	Query    string
+	Message  string
+	Tags     []string
+	Monitor  any
+}
+
 // MetricSeries is a monitor's evaluated metric over a recent window — the
 // data behind the alert, for the monitor detail view. Note explains why
 // there's no sparkline (non-metric monitor, unparseable query, no data).
