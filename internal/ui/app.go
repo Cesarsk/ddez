@@ -620,7 +620,8 @@ func (a *App) buildHelp() tview.Primitive {
 	fmt.Fprint(tv, a.theme.recolor(`
  [orange]NAVIGATION
    [aqua]:<resource>[white]   switch view: monitors incidents slos logs traces services
-                 events downtimes dashboards (aliases: mon inc s l tr svc ev dt d) — :ctx / :settings
+                 events rum downtimes dashboards (aliases: mon inc s l tr svc ev dt d)
+                 — :overview (cross-org triage) / :ctx / :settings
    [aqua]enter[white]         detail — full object on demand; SLO error budget; monitor metric
                  sparkline; on a dashboard its widget grid; on logs/traces a row
    [aqua]esc[white]           go back (navigation history, k9s-style); clears the active filter
@@ -637,6 +638,7 @@ func (a *App) buildHelp() tview.Primitive {
    [aqua]t[white]             (SLOs) cycle the Type filter: metric / monitor / time_slice / all
    [aqua]P[white]             (logs) cluster the loaded lines into patterns — flood triage
    [aqua]Q[white]             (logs/traces/events) saved-query picker — [aqua]enter[white] apply, [aqua]a[white] save, [aqua]d[white] delete
+   [aqua]F[white]             (any table) fuzzy row finder — type a subsequence, [aqua]enter[white] jumps to the row
 
  [orange]CORRELATION (the debugging loop)
    [aqua]enter[white]         (service) → its traces (service:<name>) — services ▸ traces ▸ logs

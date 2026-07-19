@@ -132,6 +132,8 @@ Switch to any view with `:` + its name or a shorter alias.
 | **Traces** | `:traces` `:tr` `:apm` `:spans` | APM spans: time, service, resource, duration, error, trace id. |
 | **Services** | `:services` `:svc` | Your APM services for an env (`/` sets the env, default `prod`); `enter` → that service's traces. |
 | **Events** | `:events` `:ev` | The change stream: deploys, alerts, config changes. |
+| **RUM** | `:rum` `:browser` | Browser/mobile events: views, actions, errors, sessions. `/` is a RUM search query (`@type:error`); digit keys set the window. |
+| **Overview** | `:overview` `:ov` | Cross-resource triage: open incidents + alerting monitors from every active org, worst first. `enter` opens the real detail. |
 | **Downtimes** | `:downtimes` `:dt` `:mutes` | Scheduled/active monitor mutes: status, scope, message, created. |
 | **Dashboards** | `:dashboards` `:dash` `:d` | Title, layout, author, modified. |
 | **Contexts** | `:ctx` | Your Datadog orgs — switch, add, edit, delete (see [contexts](#multiple-orgs-contexts--auth)). |
@@ -263,6 +265,15 @@ dotfiles get committed, so ike won't let you put a secret there.
 **Which context at startup:** `--context` flag → `$IKE_CONTEXT` → the config's
 `current-context`.
 
+**Spanning several orgs at once.** In `:ctx`, press `space` on a context to
+**activate** it (marker `●`; the current context `*` is always active). With
+more than one org active, every view merges rows from all of them and shows a
+`CTX` column naming each row's org; `:overview` triages open incidents and
+alerting monitors across all of them. Details, drill-downs and writes on a row
+always go to that row's org, and the header shows one rate-limit budget line
+per org. Deactivating (space again) tears that org's cache down. The
+activation persists in the config (`active: true`).
+
 ---
 
 ## Rate limits
@@ -317,6 +328,8 @@ the error rather than blanking mid-incident.
 | `t` | SLOs | cycle type filter |
 | `P` | Logs | cluster into patterns |
 | `Q` | Logs/Traces/Events | saved-query picker (enter apply · `a` save · `d` delete) |
+| `F` | any table | fuzzy row finder: type a subsequence, `enter` jumps to the row |
+| `space` | Contexts | activate/deactivate a context for org-spanning views |
 | `r` | Incidents | change state |
 | `v` | Incidents | change severity |
 | `I` | Incidents | assign commander (user picker; you pinned on top) |
@@ -363,7 +376,7 @@ ttl-overrides:                 # optional; per-view cache TTL (Go durations)
 columns:                       # optional; choose/reorder columns per view
   monitors: [STATE, NAME, TAGS]
   logs: [TIME, SERVICE, MESSAGE]
-theme: default                 # optional; default | mono | nord | solarized
+theme: ike                     # optional; ike | default | mono | nord | solarized
 contexts:
   dev:
     site: datadoghq.eu
@@ -391,7 +404,7 @@ contexts:
 | `refresh-interval` | Auto-refresh cadence, e.g. `45s`, `0` to disable. |
 | `ttl-overrides.<view>` | Custom cache TTL per view (`logs`, `monitors`, …), Go duration; overrides the built-in default. |
 | `columns.<view>` | Column subset/order to display for a view, by name (below). Normally set via the in-app `C` picker; hand-editable too. Unknown names ignored; empty/all-unknown shows all. Display-only — sort/filter still see every column. |
-| `theme` | TUI colour palette: `default`, `mono`, `nord`, or `solarized`. Recolours the chrome (borders, titles, selection, accents) — status colours (alert red, ok green) are never themed. |
+| `theme` | TUI colour palette: `ike` (the default), `default` (the original look), `mono`, `nord`, or `solarized`. Recolours the chrome (borders, titles, selection, accents) — status colours (alert red, ok green) are never themed. |
 
 **Available column names per view** (for `columns:`):
 

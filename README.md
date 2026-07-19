@@ -27,13 +27,15 @@ already have from [k9s](https://k9scli.io): `:` to switch views, `/` to filter,
 
 <sub>Named after a dog named Ike. The command is `ike`; the job is keeping an eye on things.</sub>
 
-> **Status: real-org validated.** Nine views (monitors, incidents, SLOs, logs,
-> traces, services, events, downtimes, dashboards), log and trace correlation
-> with a unified request timeline, multi-org contexts, confirm-gated writes
-> (mute a monitor, change incident state / severity / commander, incident
-> to-dos, cancel a downtime), session restore (reopens on your last org and
-> view), and an offline demo mode. New here? The
-> **[User Manual](docs/MANUAL.md)** is a full walkthrough.
+> **Status: real-org validated.** Ten views (monitors, incidents, SLOs, logs,
+> traces, services, events, RUM, downtimes, dashboards) plus `:overview`, a
+> cross-org triage screen. Views can span several Datadog orgs at once
+> (activate contexts with space in `:ctx`), log and trace correlation with a
+> unified request timeline, an incident war room (people, impacts, to-dos),
+> SLO error-budget burndowns, confirm-gated writes (mute a monitor, change
+> incident state / severity / commander, incident to-dos, cancel a downtime),
+> a fuzzy row finder, session restore, and an offline demo mode. New here?
+> The **[User Manual](docs/MANUAL.md)** is a full walkthrough.
 
 ## Demo
 
@@ -97,7 +99,7 @@ The essentials (see the [full reference in the Manual](docs/MANUAL.md#keybinding
 
 | Key | Action |
 |-----|--------|
-| `:` | switch view: `:monitors` `:incidents` `:slos` `:logs` `:traces` `:services` `:events` `:downtimes` `:dashboards` `:ctx` `:settings` |
+| `:` | switch view: `:monitors` `:incidents` `:slos` `:logs` `:traces` `:services` `:events` `:rum` `:downtimes` `:dashboards` `:overview` `:ctx` `:settings` |
 | `/` | filter rows; in Logs/Traces/Events it is a Datadog search query (with autocomplete) |
 | `enter` | detail view (SLO error budget, dashboard widget grid, incident People header, …) |
 | `l` / `t` | drill to logs / to the trace waterfall (the debugging loop) |
@@ -106,6 +108,8 @@ The essentials (see the [full reference in the Manual](docs/MANUAL.md#keybinding
 | `I` / `T` | incident: assign commander (searchable picker) / open the to-do panel |
 | `m` / `x` | mute a monitor / cancel a downtime (confirm-gated) |
 | `Q` / `C` | saved-query picker / column picker |
+| `F` | fuzzy row finder on any table |
+| `space` | in `:ctx`: activate a context so views span that org too |
 | `?` | help, from any view |
 
 ## Multiple orgs (contexts)
@@ -155,7 +159,7 @@ Kubernetes cluster. ike is built for that:
 
 ## Customization
 
-`:settings` edits the theme (`default`, `mono`, `nord`, `solarized`) and
+`:settings` edits the theme (`ike`, `default`, `mono`, `nord`, `solarized`) and
 per-view cache TTLs. `C` on any table opens a column picker (`space` to
 show/hide, `J`/`K` to reorder). Everything applies live and is saved to the
 config file, which is hand-editable too. See the
