@@ -132,6 +132,16 @@ Startup context selection precedence: `--context` flag →
 at all, the classic `DD_API_KEY`/`DD_APP_KEY`/`DD_SITE` env vars become an
 implicit `default` context, so pre-contexts usage keeps working.
 
+**Multi-context spanning.** Contexts activated with space in `:ctx` each get
+their own provider + TTL cache (a `providers` map keyed by context name; the
+current context is always active). Spanning views fan out one `Fetch` per
+active org in parallel, tag every row with its origin org (`Row.Ctx`), merge
+(monitors alert-first, time-lined views newest-first), and render a
+display-only `CTX` column. Every row-scoped call — detail, drill-down, write,
+the user picker — routes through `providerFor(row)` to the row's org, so
+nothing crosses org boundaries. One org failing still renders the others'
+rows plus an error flash; the header shows one budget line per active org.
+
 **Session restore.** The active org and view are persisted as you navigate
 (`current-context` + `current-view`, written on a `:ctx` switch and on a
 `:<resource>` command via a `PersistSession` callback — drill-downs stay

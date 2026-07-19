@@ -238,7 +238,16 @@ don't blank SEV/STATE), ~~session restore~~ (`current-view` in the config
 alongside `current-context`; reopens on the last org + view, persisted on
 `:ctx`/`:<resource>` switches, drill-downs stay transient), ~~startup splash~~
 (full-screen `IKE` logo + version + `github.com/Cesarsk`, transparent
-background, ~1.2s or any key to dismiss, first view loading underneath).
+background, ~1.2s or any key to dismiss, first view loading underneath),
+~~multi-context activation + org-spanning views~~ (space in `:ctx`, per-org
+providers/caches/budgets, CTX column, Row-level routing of every
+detail/drill/write), ~~:overview~~ (cross-org triage: open incidents +
+alerting monitors, worst first), ~~incident war room~~ (people, impacts via
+`ListIncidentImpacts`, to-dos, fields in one detail), ~~SLO error-budget
+burndown~~ (burn rate + burndown sparkline from `GetSLOHistory`), ~~RUM view~~
+(`:rum` via `ListRUMEvents`, server-side query), ~~fuzzy row finder~~ (`F`),
+~~structured monitor detail~~, ~~ike signature palette~~ (default theme; the
+original look remains as `theme: default`).
 
 ## Traces & correlation
 
