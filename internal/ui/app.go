@@ -98,6 +98,11 @@ type Options struct {
 	// PersistActive saves a context's explicit-activation flag (space in :ctx)
 	// to the config (nil = in-session only, e.g. demo).
 	PersistActive func(context string, active bool) error
+	// OAuthLogin runs the browser sign-in for a context (create-or-update) and
+	// returns its info once tokens are stored. Blocking (the user completes the
+	// login in the browser) — the UI calls it off the main thread. nil = the
+	// feature is unavailable (demo mode).
+	OAuthLogin func(name, site, subdomain string) (ContextInfo, error)
 	// Version is shown on the startup splash (goreleaser ldflag; "dev" locally).
 	Version string
 }
@@ -608,7 +613,7 @@ func (a *App) setHints() {
 		case overviewResource.Key:
 			lines = append(lines, "[gray]<enter>detail  open incidents + alerting monitors across every active org")
 		case ctxResource.Key:
-			lines = append(lines, "[gray]<enter>switch org  <space>activate for spanning  <a>add  <e>edit config  <ctrl-d>delete")
+			lines = append(lines, "[gray]<enter>switch org  <space>activate for spanning  <O>browser sign-in  <a>add keys  <e>edit config  <ctrl-d>delete")
 		default:
 			lines = append(lines, "[gray]<s>sort <S>reverse")
 		}
@@ -668,6 +673,8 @@ func (a *App) buildHelp() tview.Primitive {
    [aqua]space[white]         activate/deactivate a context for org-spanning — with several orgs
                  active, monitors/incidents/SLOs/downtimes merge them all (CTX column;
                  [aqua]*[white]=current, [aqua]●[white]=activated); actions on a row hit that row's org
+   [aqua]O[white]             sign in with the browser (OAuth) — no keys to paste; tokens go to the
+                 OS keychain and refresh automatically
    [aqua]a[white]             add a context (name, site, API/APP keys or access token → OS keychain)
    [aqua]e[white]             edit the config file in $EDITOR, then reload + re-validate
    [aqua]ctrl-d[white]        delete the selected context (asks first)
@@ -964,6 +971,11 @@ func (a *App) keys(ev *tcell.EventKey) *tcell.EventKey {
 	case 'a':
 		if a.res.Key == ctxResource.Key {
 			a.openCtxForm()
+			return nil
+		}
+	case 'O':
+		if a.res.Key == ctxResource.Key {
+			a.openOAuthForm()
 			return nil
 		}
 	case 'e':
@@ -2118,7 +2130,70 @@ func (a *App) openCtxForm() {
 		AddInputField("Subdomain (optional)", "", 30, nil, nil).
 		AddButton("Save", a.saveCtxForm).
 		AddButton("Cancel", a.back)
+	a.ctxForm.SetTitle(" Add context ")
 	a.showPage("ctxform")
+}
+
+// openOAuthForm is the TUI path to `ike auth login`: name an org, pick the
+// site, then sign in through the browser — no keys or tokens to paste.
+func (a *App) openOAuthForm() {
+	if a.opts.OAuthLogin == nil {
+		a.flash("browser sign-in is not available in this mode", true)
+		return
+	}
+	a.pushNav()
+	a.formErr.SetText("")
+	labels := make([]string, len(config.Sites))
+	for i, s := range config.Sites {
+		labels[i] = fmt.Sprintf("%-17s (%s)", s, siteRegions[s])
+	}
+	a.ctxForm.Clear(true)
+	a.ctxForm.
+		AddInputField("Context name", "", 30, nil, nil).
+		AddDropDown("Site", labels, 0, nil).
+		AddInputField("Subdomain (optional)", "", 30, nil, nil).
+		AddButton("Sign in with browser", a.startOAuthLogin).
+		AddButton("Cancel", a.back)
+	a.ctxForm.SetTitle(" Sign in with browser (OAuth) ")
+	a.showPage("ctxform")
+}
+
+// startOAuthLogin kicks off the blocking browser flow off the UI thread and
+// folds the result back in: the context appears in :ctx ready to use.
+func (a *App) startOAuthLogin() {
+	name := strings.TrimSpace(a.ctxForm.GetFormItem(0).(*tview.InputField).GetText())
+	siteIx, _ := a.ctxForm.GetFormItem(1).(*tview.DropDown).GetCurrentOption()
+	subdomain := strings.TrimSpace(a.ctxForm.GetFormItem(2).(*tview.InputField).GetText())
+	if name == "" {
+		a.formErr.SetText("[red]✗ Context name is required")
+		return
+	}
+	site := config.Sites[siteIx]
+	a.back() // leave the form; progress shows in the status bar
+	a.flash("browser opened — complete the sign-in there …", false)
+	go func() {
+		info, err := a.opts.OAuthLogin(name, site, subdomain)
+		a.QueueUpdateDraw(func() {
+			if err != nil {
+				a.flash("✗ sign-in: "+err.Error(), true)
+				return
+			}
+			replaced := false
+			for i, c := range a.ctxInfos {
+				if c.Name == info.Name {
+					a.ctxInfos[i] = info
+					replaced = true
+				}
+			}
+			if !replaced {
+				a.ctxInfos = append(a.ctxInfos, info)
+			}
+			if a.res.Key == ctxResource.Key {
+				a.load(false)
+			}
+			a.flash("signed in — context "+info.Name+" ready (enter to switch)", false)
+		})
+	}()
 }
 
 // formError shows a validation error inside the form page (and logs it) —

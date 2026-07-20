@@ -71,6 +71,7 @@ stores OAuth tokens in the OS keychain under a context named after `--org`
 (override with `--context`), and refreshes them automatically from then on.
 Re-run the same command to rotate credentials. Orgs with a custom web
 subdomain add `--subdomain acme-dev` so the browser lands on the right org.
+The same flow lives inside the app: `:ctx` then `O` opens the sign-in form.
 
 **Splash + session restore.** On launch a brief full-screen `IKE` splash shows
 (with the version) while your first view loads underneath — it clears after

@@ -169,6 +169,17 @@ func main() {
 			cfg.CurrentView = view
 			return cfg.Save(config.Path())
 		}
+		// OAuthLogin backs the :ctx browser sign-in form ('O').
+		opts.OAuthLogin = func(name, site, subdomain string) (ui.ContextInfo, error) {
+			entry, err := loginContext(cfg, config.KeyringStore{}, name, site, subdomain, "", func(u string) error {
+				slog.Info("oauth authorize", "url", u)
+				return openBrowser(u)
+			})
+			if err != nil {
+				return ui.ContextInfo{}, err
+			}
+			return ui.ContextInfo{Name: name, Site: entry.Site, Keys: keysLabel(entry), Active: entry.Active}, nil
+		}
 		// PersistActive saves a context's spanning activation (space in :ctx).
 		opts.PersistActive = func(context string, active bool) error {
 			c, ok := cfg.Contexts[context]
@@ -399,27 +410,46 @@ func runAuth(args []string) {
 		}
 		cfg = &config.Config{Contexts: map[string]config.Context{}}
 	}
+	fmt.Println("opening your browser to sign in — if it does not open, visit the printed URL")
+	entry, err := loginContext(cfg, config.KeyringStore{}, name, *site, *subdomain, *org, func(u string) error {
+		fmt.Println(u)
+		return openBrowser(u)
+	})
+	if err != nil {
+		fatal(err.Error())
+	}
+	cfg.CurrentContext = name
+	if err := cfg.Save(config.Path()); err != nil {
+		fatal(err.Error())
+	}
+	fmt.Printf("signed in: context %q (site %s) — tokens in the OS keychain, refreshed automatically.\nrun `ike` to start.\n", name, entry.Site)
+}
+
+// loginContext is the shared core of `ike auth login` and the TUI's :ctx `O`
+// form: merge the flags onto the named context entry, register (or reuse) the
+// OAuth client, run the browser flow, persist tokens to the keychain and the
+// entry to the config. openURL launches the authorize page (the CLI also
+// prints it; the TUI must not write to stdout).
+func loginContext(cfg *config.Config, store config.KeyringStore, name, site, subdomain, org string, openURL func(string) error) (config.Context, error) {
 	entry := cfg.Contexts[name]
-	if *site != "" {
-		entry.Site = *site
+	if site != "" {
+		entry.Site = site
 	}
 	if entry.Site == "" {
 		entry.Site = config.DefaultSite
 	}
-	if *subdomain != "" {
-		entry.Subdomain = *subdomain
+	if subdomain != "" {
+		entry.Subdomain = subdomain
 	}
-	if *org != "" {
-		entry.Org = *org
+	if org != "" {
+		entry.Org = org
 	}
 	if !config.ValidSite(entry.Site) {
-		fatal(fmt.Sprintf("unknown site %q — refusing to send a login to an unrecognized host (valid: %v)", entry.Site, config.Sites))
+		return entry, fmt.Errorf("unknown site %q — refusing to send a login to an unrecognized host (valid: %v)", entry.Site, config.Sites)
 	}
 	if !config.ValidSubdomain(entry.Subdomain) {
-		fatal(fmt.Sprintf("invalid subdomain %q — a single DNS label like acme-stage", entry.Subdomain))
+		return entry, fmt.Errorf("invalid subdomain %q — a single DNS label like acme-stage", entry.Subdomain)
 	}
-
-	store := config.KeyringStore{}
 	ep := auth.EndpointsFor(entry.Site, entry.Subdomain)
 
 	// Reuse the registered client when this context logged in before;
@@ -432,34 +462,28 @@ func runAuth(args []string) {
 		}
 	}
 	if clientID == "" {
-		fmt.Println("registering ike with", ep.API, "…")
-		clientID, err = auth.Register(context.Background(), ep.API)
+		id, err := auth.Register(context.Background(), ep.API)
 		if err != nil {
-			fatal(err.Error())
+			return entry, err
 		}
+		clientID = id
 	}
 
-	fmt.Println("opening your browser to sign in — if it does not open, visit the printed URL")
-	tok, err := auth.Login(context.Background(), ep, clientID, func(u string) error {
-		fmt.Println(u)
-		return openBrowser(u)
-	})
+	tok, err := auth.Login(context.Background(), ep, clientID, openURL)
 	if err != nil {
-		fatal(err.Error())
+		return entry, err
 	}
-
 	blob, _ := json.Marshal(auth.Credentials{ClientID: clientID, TokenSet: tok})
 	if err := store.SetOAuth(name, string(blob)); err != nil {
-		fatal(err.Error())
+		return entry, err
 	}
 	entry.Keychain = true
 	entry.Auth = "oauth"
 	cfg.Contexts[name] = entry
-	cfg.CurrentContext = name
 	if err := cfg.Save(config.Path()); err != nil {
-		fatal(err.Error())
+		return entry, err
 	}
-	fmt.Printf("signed in: context %q (site %s) — tokens in the OS keychain, refreshed automatically.\nrun `ike` to start.\n", name, entry.Site)
+	return entry, nil
 }
 
 // openBrowser opens a URL with the platform opener; the URL is also printed
