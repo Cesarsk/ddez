@@ -775,6 +775,42 @@ func TestProviderRouting(t *testing.T) {
 	}
 }
 
+// TestOAuthFormFlow: the :ctx 'O' form drives the injected OAuthLogin
+// callback off-thread and folds the resulting context into the list.
+func TestOAuthFormFlow(t *testing.T) {
+	sites := map[string]string{"demo-dev": "datadoghq.eu"}
+	app, err := New(Options{
+		Contexts: []ContextInfo{{Name: "demo-dev", Site: "datadoghq.eu", Keys: "built-in"}},
+		Current:  "demo-dev",
+		Factory:  func(name string) (data.Provider, error) { return data.NewDemo(sites[name]), nil },
+		OAuthLogin: func(name, site, subdomain string) (ContextInfo, error) {
+			sites[name] = site
+			return ContextInfo{Name: name, Site: site, Keys: "keychain (oauth)"}, nil
+		},
+		Refresh: time.Minute,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sim := newSim(t)
+	app.SetScreen(sim)
+	go func() { _ = app.Run() }()
+
+	waitFor(t, sim, "Monitors(all)")
+	typeCmd(sim, ":ctx")
+	waitFor(t, sim, "Contexts(all)")
+	typeRunes(sim, "O")
+	waitFor(t, sim, "Sign in with browser (OAuth)")
+	typeRunes(sim, "staging-oauth") // context name field has focus
+	press(sim, tcell.KeyTab)        // → site dropdown (keep default)
+	press(sim, tcell.KeyTab)        // → subdomain (leave empty)
+	press(sim, tcell.KeyTab)        // → Sign in button
+	press(sim, tcell.KeyEnter)
+	waitFor(t, sim, "signed in — context staging-oauth ready")
+	waitFor(t, sim, "keychain (oauth)") // listed in :ctx with the oauth label
+	app.Stop()
+}
+
 func newSim(t *testing.T) tcell.SimulationScreen {
 	t.Helper()
 	sim := tcell.NewSimulationScreen("UTF-8")
