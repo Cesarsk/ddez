@@ -282,9 +282,10 @@ dotfiles get committed, so ike won't let you put a secret there.
 `current-context`.
 
 **Spanning several orgs at once.** In `:ctx`, press `space` on a context to
-**activate** it. The `ACTIVE` column spells out who participates: every
-activated org reads `active`, and the current one reads `active (current)` —
-it is always active and is where `enter` lands you. With
+**activate** it. The `ACTIVE` column shows exactly who participates: every
+active org reads `active` — the one you switched to with `enter` and any
+space-marked ones alike (the org you're driving is named in the header).
+Switching with `enter` keeps the space-marked orgs in and drops the rest. With
 more than one org active, every view merges rows from all of them and shows a
 `CTX` column naming each row's org; `:overview` triages open incidents and
 alerting monitors across all of them. Details, drill-downs and writes on a row

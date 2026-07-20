@@ -629,7 +629,7 @@ func (a *App) setHints() {
 		case overviewResource.Key:
 			lines = append(lines, "[gray]<enter>detail  open incidents + alerting monitors across every active org")
 		case ctxResource.Key:
-			lines = append(lines, "[gray]<enter>switch to org  <space>activate/deactivate (active orgs merge in views)  <O>browser sign-in  <a>add  <e>edit  <d>delete")
+			lines = append(lines, "[gray]<enter>switch org  <space>toggle active (all active orgs merge in views)  <O>browser sign-in  <a>add  <e>edit  <d>delete")
 		default:
 			lines = append(lines, "[gray]<s>sort <S>reverse")
 		}
@@ -685,11 +685,11 @@ func (a *App) buildHelp() tview.Primitive {
    [aqua]p[white]             pause / resume auto-refresh (header shows auto:on/off)
 
  [orange]CONTEXTS (:ctx)
-   [aqua]enter[white]         switch to an org: it becomes "active (current)" — the one you drive
-                 and where new views load (cache, budget and history reset)
-   [aqua]space[white]         activate/deactivate an org for spanning — every row marked "active"
-                 merges into the views (CTX column names each row's org); actions
-                 on a row always hit that row's org
+   [aqua]enter[white]         switch to an org (cache, budget and history reset). Orgs marked
+                 active with space stay in; anything else drops out
+   [aqua]space[white]         toggle an org active — every "active" row merges into the views
+                 (CTX column names each row's org); actions on a row always hit
+                 that row's org. The org you're driving shows in the header
    [aqua]O[white]             browser sign-in (OAuth) for the selected context — tokens go to the OS
                  keychain and refresh automatically. On an OAuth row it signs in or
                  refreshes; on a key/token row it offers to convert it (asks first)
@@ -1838,14 +1838,12 @@ func (a *App) showContexts() {
 func (a *App) contextRows() []data.Row {
 	rows := make([]data.Row, 0, len(a.ctxInfos))
 	for _, c := range a.ctxInfos {
-		// One state, spelled out: every org participating in views reads
-		// "active" — the current one (always active) is marked as such, and
-		// space-activated ones just say "active". Blank = not participating.
+		// One state, one word: every org participating in views reads
+		// "active" — the org you switched to (enter) and any space-marked
+		// ones alike. Blank = not participating. Which org you're driving
+		// is already in the header (Mode: live [name]).
 		status := ""
-		switch {
-		case c.Name == a.current:
-			status = "active (current)"
-		case c.Active:
+		if c.Name == a.current || c.Active {
 			status = "active"
 		}
 		rows = append(rows, data.Row{
