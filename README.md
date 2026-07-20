@@ -83,8 +83,10 @@ ike
 `ike auth login` opens Datadog's own login page (SSO and 2FA included), stores
 the tokens in your OS keychain tied to a named context, and refreshes them
 automatically. Re-run it any time to rotate. Orgs with a custom web subdomain
-pass `--subdomain acme-dev`. The same flow is available inside the app:
-`:ctx` then `O`.
+pass `--subdomain acme-dev`. The same flow is available inside the app: in
+`:ctx`, add a context with the "Browser sign-in (OAuth)" auth type, then press
+`O` on its row to sign in. `O` also re-signs-in an OAuth context, or converts a
+key/token context to OAuth (it asks first).
 
 ## The debugging loop
 

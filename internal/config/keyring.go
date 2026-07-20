@@ -18,6 +18,10 @@ type SecretStore interface {
 	SetOAuth(context, blob string) error
 	GetOAuth(context string) (string, error)
 	Delete(context string) error
+	// DeleteNonOAuth removes the api-key/app-key/token entries but keeps the
+	// oauth blob — used when a context is converted to OAuth so stale secrets
+	// don't linger in the keychain.
+	DeleteNonOAuth(context string) error
 }
 
 const keyringService = "ike"
@@ -81,6 +85,15 @@ func (KeyringStore) GetOAuth(context string) (string, error) {
 
 func (KeyringStore) Delete(context string) error {
 	for _, k := range []string{context + ":api-key", context + ":app-key", context + ":token", context + ":oauth"} {
+		if err := keyring.Delete(keyringService, k); err != nil && !errors.Is(err, keyring.ErrNotFound) {
+			return fmt.Errorf("keychain: %w", err)
+		}
+	}
+	return nil
+}
+
+func (KeyringStore) DeleteNonOAuth(context string) error {
+	for _, k := range []string{context + ":api-key", context + ":app-key", context + ":token"} {
 		if err := keyring.Delete(keyringService, k); err != nil && !errors.Is(err, keyring.ErrNotFound) {
 			return fmt.Errorf("keychain: %w", err)
 		}

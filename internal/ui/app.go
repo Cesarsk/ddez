@@ -38,6 +38,10 @@ type ContextInfo struct {
 	Name string
 	Site string
 	Keys string // where the credentials come from, e.g. "$IKE_DEV_API_KEY"
+	// Auth is the context's auth shape: "oauth" (browser sign-in), "token"
+	// (access token), or "" (API+APP key pair / env). It decides how 'O' and a
+	// failed switch behave in :ctx.
+	Auth string
 	// Active marks the context as explicitly activated for org-spanning views
 	// (space in :ctx). The current context is always implicitly active.
 	Active bool
@@ -98,11 +102,16 @@ type Options struct {
 	// PersistActive saves a context's explicit-activation flag (space in :ctx)
 	// to the config (nil = in-session only, e.g. demo).
 	PersistActive func(context string, active bool) error
-	// OAuthLogin runs the browser sign-in for a context (create-or-update) and
-	// returns its info once tokens are stored. Blocking (the user completes the
-	// login in the browser) — the UI calls it off the main thread. nil = the
-	// feature is unavailable (demo mode).
-	OAuthLogin func(name, site, subdomain string) (ContextInfo, error)
+	// AddOAuthContext creates a pending OAuth context from the :ctx add form
+	// (auth = browser sign-in): the entry is persisted, but no tokens exist
+	// until the user signs in with 'O'. nil = unavailable (e.g. demo mode).
+	AddOAuthContext func(name, site, subdomain string) (ContextInfo, error)
+	// OAuthLogin runs the browser sign-in for the named context and returns its
+	// refreshed info once tokens are stored — site/subdomain come from the
+	// stored context. On a key/token context it converts it to OAuth. Blocking
+	// (the user completes the login in the browser), so the UI calls it off the
+	// main thread. nil = the feature is unavailable (demo mode).
+	OAuthLogin func(name string) (ContextInfo, error)
 	// Version is shown on the startup splash (goreleaser ldflag; "dev" locally).
 	Version string
 }
@@ -613,7 +622,7 @@ func (a *App) setHints() {
 		case overviewResource.Key:
 			lines = append(lines, "[gray]<enter>detail  open incidents + alerting monitors across every active org")
 		case ctxResource.Key:
-			lines = append(lines, "[gray]<enter>switch org  <space>activate for spanning  <O>browser sign-in  <a>add keys  <e>edit config  <ctrl-d>delete")
+			lines = append(lines, "[gray]<enter>switch org  <space>activate for spanning  <O>browser sign-in  <a>add context  <e>edit config  <ctrl-d>delete")
 		default:
 			lines = append(lines, "[gray]<s>sort <S>reverse")
 		}
@@ -673,9 +682,11 @@ func (a *App) buildHelp() tview.Primitive {
    [aqua]space[white]         activate/deactivate a context for org-spanning — with several orgs
                  active, monitors/incidents/SLOs/downtimes merge them all (CTX column;
                  [aqua]*[white]=current, [aqua]●[white]=activated); actions on a row hit that row's org
-   [aqua]O[white]             sign in with the browser (OAuth) — no keys to paste; tokens go to the
-                 OS keychain and refresh automatically
-   [aqua]a[white]             add a context (name, site, API/APP keys or access token → OS keychain)
+   [aqua]O[white]             browser sign-in (OAuth) for the selected context — tokens go to the OS
+                 keychain and refresh automatically. On an OAuth row it signs in or
+                 refreshes; on a key/token row it offers to convert it (asks first)
+   [aqua]a[white]             add a context — pick its auth (browser sign-in, API/APP keys, or
+                 access token); credentials go to the OS keychain
    [aqua]e[white]             edit the config file in $EDITOR, then reload + re-validate
    [aqua]ctrl-d[white]        delete the selected context (asks first)
 
@@ -975,7 +986,7 @@ func (a *App) keys(ev *tcell.EventKey) *tcell.EventKey {
 		}
 	case 'O':
 		if a.res.Key == ctxResource.Key {
-			a.openOAuthForm()
+			a.beginRowLogin()
 			return nil
 		}
 	case 'e':
@@ -1935,7 +1946,13 @@ func (a *App) switchContext(name string) {
 		np, err := a.opts.Factory(name)
 		if err != nil {
 			slog.Error("context switch failed", "to", name, "err", err)
-			a.flash("✗ context "+name+": "+err.Error(), true)
+			// An OAuth context with no tokens yet isn't an error the user should
+			// see raw — it just hasn't been signed into. Point them at 'O'.
+			if a.ctxAuth(name) == "oauth" {
+				a.flash("context "+name+" is not signed in yet — press O to sign in", false)
+			} else {
+				a.flash("✗ context "+name+": "+err.Error(), true)
+			}
 			return
 		}
 		p = data.NewCached(np)
@@ -2122,11 +2139,12 @@ func (a *App) openCtxForm() {
 	}
 	a.ctxForm.Clear(true)
 	a.ctxForm.
+		AddDropDown("Auth", ctxAuthOptions, 0, nil).
 		AddInputField("Name", "", 30, nil, nil).
 		AddDropDown("Site", labels, 0, nil).
-		AddPasswordField("API key (option 1)", "", 50, '*', nil).
-		AddPasswordField("APP key (option 1)", "", 50, '*', nil).
-		AddPasswordField("Access token (option 2)", "", 50, '*', nil).
+		AddPasswordField("API key (for API keys)", "", 50, '*', nil).
+		AddPasswordField("APP key (for API keys)", "", 50, '*', nil).
+		AddPasswordField("Access token (for access token)", "", 50, '*', nil).
 		AddInputField("Subdomain (optional)", "", 30, nil, nil).
 		AddButton("Save", a.saveCtxForm).
 		AddButton("Cancel", a.back)
@@ -2134,45 +2152,47 @@ func (a *App) openCtxForm() {
 	a.showPage("ctxform")
 }
 
-// openOAuthForm is the TUI path to `ike auth login`: name an org, pick the
-// site, then sign in through the browser — no keys or tokens to paste.
-func (a *App) openOAuthForm() {
+// ctxAuthOptions are the auth shapes offered in the add-context form, in
+// dropdown order. Index 0 (OAuth) is the default and the recommended path.
+var ctxAuthOptions = []string{"Browser sign-in (OAuth)", "API + APP keys", "Access token"}
+
+// beginRowLogin runs the browser sign-in for the selected :ctx row ('O'). An
+// OAuth context signs in (or refreshes) directly; a key/token context is a
+// conversion, so it asks first before switching that context to OAuth.
+func (a *App) beginRowLogin() {
 	if a.opts.OAuthLogin == nil {
 		a.flash("browser sign-in is not available in this mode", true)
 		return
 	}
-	a.pushNav()
-	a.formErr.SetText("")
-	labels := make([]string, len(config.Sites))
-	for i, s := range config.Sites {
-		labels[i] = fmt.Sprintf("%-17s (%s)", s, siteRegions[s])
-	}
-	a.ctxForm.Clear(true)
-	a.ctxForm.
-		AddInputField("Context name", "", 30, nil, nil).
-		AddDropDown("Site", labels, 0, nil).
-		AddInputField("Subdomain (optional)", "", 30, nil, nil).
-		AddButton("Sign in with browser", a.startOAuthLogin).
-		AddButton("Cancel", a.back)
-	a.ctxForm.SetTitle(" Sign in with browser (OAuth) ")
-	a.showPage("ctxform")
-}
-
-// startOAuthLogin kicks off the blocking browser flow off the UI thread and
-// folds the result back in: the context appears in :ctx ready to use.
-func (a *App) startOAuthLogin() {
-	name := strings.TrimSpace(a.ctxForm.GetFormItem(0).(*tview.InputField).GetText())
-	siteIx, _ := a.ctxForm.GetFormItem(1).(*tview.DropDown).GetCurrentOption()
-	subdomain := strings.TrimSpace(a.ctxForm.GetFormItem(2).(*tview.InputField).GetText())
-	if name == "" {
-		a.formErr.SetText("[red]✗ Context name is required")
+	r, ok := a.selectedRow()
+	if !ok {
 		return
 	}
-	site := config.Sites[siteIx]
-	a.back() // leave the form; progress shows in the status bar
-	a.flash("browser opened — complete the sign-in there …", false)
+	name := r.ID
+	if a.ctxAuth(name) == "oauth" {
+		a.startLogin(name)
+		return
+	}
+	using := "an API + APP key pair"
+	if a.ctxAuth(name) == "token" {
+		using = "an access token"
+	}
+	a.showConfirm(
+		fmt.Sprintf("Context %q signs in with %s.\nBrowser sign-in will replace that with OAuth for this context.\nContinue?", name, using),
+		[]string{"Cancel", "Sign in with browser"},
+		func(label string) {
+			if label == "Sign in with browser" {
+				a.startLogin(name)
+			}
+		})
+}
+
+// startLogin kicks off the blocking browser flow for one context off the UI
+// thread and folds the refreshed info back into :ctx.
+func (a *App) startLogin(name string) {
+	a.flash("browser opened — complete the sign-in for "+name+" there …", false)
 	go func() {
-		info, err := a.opts.OAuthLogin(name, site, subdomain)
+		info, err := a.opts.OAuthLogin(name)
 		a.QueueUpdateDraw(func() {
 			if err != nil {
 				a.flash("✗ sign-in: "+err.Error(), true)
@@ -2196,6 +2216,16 @@ func (a *App) startOAuthLogin() {
 	}()
 }
 
+// ctxAuth returns a context's auth shape ("oauth" / "token" / "" for keys).
+func (a *App) ctxAuth(name string) string {
+	for _, c := range a.ctxInfos {
+		if c.Name == name {
+			return c.Auth
+		}
+	}
+	return ""
+}
+
 // formError shows a validation error inside the form page (and logs it) —
 // the bottom status bar alone is too easy to miss while filling fields.
 func (a *App) formError(msg string) {
@@ -2208,36 +2238,36 @@ func (a *App) formError(msg string) {
 // word-wrap degrades gracefully in narrow terminals.
 const ctxFormGuidance = `[orange]How to fill this in[white]
 
+[aqua]Auth[white] — how this context signs in. Pick one:
+
+[yellow]Browser sign-in (OAuth)[white] (recommended) — no keys to paste. Save creates the context, then press [green]O[white] on its row to sign in through your browser. Tokens go to the OS keychain and refresh automatically. Leave the key/token fields empty.
+
+[yellow]API + APP keys[white] — fill BOTH key fields.
+[green]API key[white]: Organization Settings → API Keys (org-wide; ask an admin if you cannot create one).
+[green]APP key[white]: Personal Settings → Application Keys → New Key. Scope it read-only: monitors_read, incidents_read, slos_read, logs_read_data, dashboards_read.
+
+[yellow]Access token[white] — fill the Access token field with a bearer token (OAuth2 access token or PAT, e.g. from Datadog's pup CLI or your SSO tooling). Usually short-lived (~1h).
+
 [aqua]Name[white] — anything you like ("Datadog Dev", "prod", …).
 
 [aqua]Site[white] — pick from the list (enter/space or click opens it). It matches the region in your Datadog URL: app.[green]datadoghq.eu[white] → datadoghq.eu.
-
-[aqua]Credentials — the fields are optional individually; fill exactly ONE option:[white]
-
-[yellow]Option 1) API key + APP key[white] (recommended for daily use)
-[green]API key[white]: Organization Settings → API Keys.
-Org-wide; ask an admin if you cannot create one.
-[green]APP key[white]: Personal Settings → Application Keys → New Key.
-Scope it read-only: monitors_read, incidents_read, slos_read, logs_read_data, dashboards_read.
-
-[yellow]Option 2) Access token only[white]
-A bearer token (OAuth2 access token or PAT), e.g. from Datadog's pup CLI or your SSO tooling. Leave both key fields empty. Tokens are usually short-lived (~1h).
 
 [aqua]Subdomain[white] — only if your org's web UI lives on a custom subdomain: for https://[green]acme-stage[white].datadoghq.eu enter [green]acme-stage[white]. Fixes 'open in Datadog' links; API calls are unaffected. Leave empty if your URL starts with app.
 
 [gray]Secrets go to the OS keychain (service "ike"), never into the config file. <esc> cancels.`
 
 func (a *App) saveCtxForm() {
-	name := strings.TrimSpace(a.ctxForm.GetFormItem(0).(*tview.InputField).GetText())
-	siteIdx, _ := a.ctxForm.GetFormItem(1).(*tview.DropDown).GetCurrentOption()
+	authIdx, _ := a.ctxForm.GetFormItem(0).(*tview.DropDown).GetCurrentOption()
+	name := strings.TrimSpace(a.ctxForm.GetFormItem(1).(*tview.InputField).GetText())
+	siteIdx, _ := a.ctxForm.GetFormItem(2).(*tview.DropDown).GetCurrentOption()
 	if siteIdx < 0 || siteIdx >= len(config.Sites) {
 		siteIdx = 0
 	}
 	site := config.Sites[siteIdx]
-	apiKey := a.ctxForm.GetFormItem(2).(*tview.InputField).GetText()
-	appKey := a.ctxForm.GetFormItem(3).(*tview.InputField).GetText()
-	token := a.ctxForm.GetFormItem(4).(*tview.InputField).GetText()
-	subdomain := strings.TrimSpace(a.ctxForm.GetFormItem(5).(*tview.InputField).GetText())
+	apiKey := a.ctxForm.GetFormItem(3).(*tview.InputField).GetText()
+	appKey := a.ctxForm.GetFormItem(4).(*tview.InputField).GetText()
+	token := a.ctxForm.GetFormItem(5).(*tview.InputField).GetText()
+	subdomain := strings.TrimSpace(a.ctxForm.GetFormItem(6).(*tview.InputField).GetText())
 
 	if name == "" {
 		a.formError("Name is required")
@@ -2253,16 +2283,40 @@ func (a *App) saveCtxForm() {
 			return
 		}
 	}
+
+	// OAuth: create a pending context now; the browser sign-in happens when
+	// the user presses O on its row.
+	if authIdx == 0 {
+		if a.opts.AddOAuthContext == nil {
+			a.formError("browser sign-in is not available in this mode")
+			return
+		}
+		info, err := a.opts.AddOAuthContext(name, site, subdomain)
+		if err != nil {
+			a.formError(err.Error())
+			return
+		}
+		slog.Info("oauth context added", "name", name, "site", site)
+		a.ctxInfos = append(a.ctxInfos, info)
+		a.back()
+		a.flash("context "+name+" added — press O on it to sign in", false)
+		return
+	}
+
 	auth := "key pair"
-	hasPair := apiKey != "" || appKey != ""
-	switch {
-	case token != "" && hasPair:
-		a.formError("fill either the API+APP key pair OR an access token — not both")
-		return
-	case token == "" && (apiKey == "" || appKey == ""):
-		a.formError("credentials missing: fill BOTH keys of option 1, or only the access token (option 2)")
-		return
-	case token != "":
+	switch authIdx {
+	case 1: // API + APP keys
+		if apiKey == "" || appKey == "" {
+			a.formError("API keys selected: fill BOTH the API key and the APP key")
+			return
+		}
+		token = "" // ignore any stray token field
+	case 2: // access token
+		if token == "" {
+			a.formError("access token selected: fill the Access token field")
+			return
+		}
+		apiKey, appKey = "", "" // ignore any stray key fields
 		auth = "token"
 	}
 	info, err := a.opts.AddContext(name, site, apiKey, appKey, token, subdomain)

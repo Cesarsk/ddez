@@ -139,7 +139,10 @@ on `127.0.0.1:53682`, and the token exchange. Tokens live in one keychain entry
 per context; the live provider gets a *token source* that refreshes lazily
 (within 60s of expiry, single-flight, persisted back). The config records only
 `{site, subdomain?, org?, keychain: true, auth: oauth}`. `internal/auth` is
-endpoint-injectable and covered end to end against httptest fakes.
+endpoint-injectable and covered end to end against httptest fakes. The same core
+(`loginContext`) backs the in-app path: `:ctx` → `a` chooses the auth type, and
+`O` runs the row-scoped login — signing in an OAuth context or converting a
+key/token one (behind a confirm, which also clears the old keychain secrets).
 
 **Multi-context spanning.** Contexts activated with space in `:ctx` each get
 their own provider + TTL cache (a `providers` map keyed by context name; the

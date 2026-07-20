@@ -70,6 +70,15 @@ func main() {
 			sites[name] = site
 			return ui.ContextInfo{Name: name, Site: site, Keys: "in-memory"}, nil
 		}
+		// OAuth is faked in demo mode: no browser opens, the context is just
+		// marked signed-in, so the add-OAuth + O flow is exercisable offline.
+		opts.AddOAuthContext = func(name, site, _ string) (ui.ContextInfo, error) {
+			sites[name] = site
+			return ui.ContextInfo{Name: name, Site: site, Keys: "in-memory (oauth)", Auth: "oauth"}, nil
+		}
+		opts.OAuthLogin = func(name string) (ui.ContextInfo, error) {
+			return ui.ContextInfo{Name: name, Site: sites[name], Keys: "in-memory (oauth)", Auth: "oauth"}, nil
+		}
 		opts.DeleteContext = func(name string) error {
 			delete(sites, name)
 			return nil
@@ -169,16 +178,39 @@ func main() {
 			cfg.CurrentView = view
 			return cfg.Save(config.Path())
 		}
-		// OAuthLogin backs the :ctx browser sign-in form ('O').
-		opts.OAuthLogin = func(name, site, subdomain string) (ui.ContextInfo, error) {
-			entry, err := loginContext(cfg, config.KeyringStore{}, name, site, subdomain, "", func(u string) error {
+		// OAuthLogin backs the :ctx row-scoped browser sign-in ('O'): it logs in
+		// (or re-logs-in) the selected context, reading its site/subdomain from
+		// the stored config. On a key/token context it converts it to OAuth.
+		opts.OAuthLogin = func(name string) (ui.ContextInfo, error) {
+			entry, err := loginContext(cfg, config.KeyringStore{}, name, "", "", "", func(u string) error {
 				slog.Info("oauth authorize", "url", u)
 				return openBrowser(u)
 			})
 			if err != nil {
 				return ui.ContextInfo{}, err
 			}
-			return ui.ContextInfo{Name: name, Site: entry.Site, Keys: keysLabel(entry), Active: entry.Active}, nil
+			return ui.ContextInfo{Name: name, Site: entry.Site, Keys: keysLabel(entry), Auth: entry.Auth, Active: entry.Active}, nil
+		}
+		// AddOAuthContext creates a pending OAuth context (:ctx → a, Auth =
+		// browser sign-in): the entry is persisted now; tokens arrive when the
+		// user presses O to sign in.
+		opts.AddOAuthContext = func(name, site, subdomain string) (ui.ContextInfo, error) {
+			if _, exists := cfg.Contexts[name]; exists {
+				return ui.ContextInfo{}, fmt.Errorf("context %q already exists in %s", name, config.Path())
+			}
+			if !config.ValidSite(site) {
+				return ui.ContextInfo{}, fmt.Errorf("unknown site %q", site)
+			}
+			if !config.ValidSubdomain(subdomain) {
+				return ui.ContextInfo{}, fmt.Errorf("invalid subdomain %q — a single DNS label like acme-stage", subdomain)
+			}
+			entry := config.Context{Site: site, Subdomain: subdomain, Keychain: true, Auth: "oauth"}
+			cfg.Contexts[name] = entry
+			if err := cfg.Save(config.Path()); err != nil {
+				delete(cfg.Contexts, name)
+				return ui.ContextInfo{}, err
+			}
+			return ui.ContextInfo{Name: name, Site: site, Keys: keysLabel(entry), Auth: "oauth"}, nil
 		}
 		// PersistActive saves a context's spanning activation (space in :ctx).
 		opts.PersistActive = func(context string, active bool) error {
@@ -191,7 +223,7 @@ func main() {
 			return cfg.Save(config.Path())
 		}
 		for _, n := range cfg.Names() {
-			opts.Contexts = append(opts.Contexts, ui.ContextInfo{Name: n, Site: cfg.Contexts[n].Site, Keys: keysLabel(cfg.Contexts[n]), Active: cfg.Contexts[n].Active})
+			opts.Contexts = append(opts.Contexts, ui.ContextInfo{Name: n, Site: cfg.Contexts[n].Site, Keys: keysLabel(cfg.Contexts[n]), Auth: cfg.Contexts[n].Auth, Active: cfg.Contexts[n].Active})
 		}
 
 		store := config.KeyringStore{}
@@ -257,7 +289,7 @@ func main() {
 				_ = store.Delete(name) // roll back the keychain entry
 				return ui.ContextInfo{}, err
 			}
-			return ui.ContextInfo{Name: name, Site: site, Keys: keysLabel(entry)}, nil
+			return ui.ContextInfo{Name: name, Site: site, Keys: keysLabel(entry), Auth: entry.Auth}, nil
 		}
 		opts.ConfigPath = config.Path()
 		opts.ReloadContexts = func() ([]ui.ContextInfo, error) {
@@ -268,7 +300,7 @@ func main() {
 			cfg = cfg2 // factory/add/delete closures see the fresh config
 			var infos []ui.ContextInfo
 			for _, n := range cfg.Names() {
-				infos = append(infos, ui.ContextInfo{Name: n, Site: cfg.Contexts[n].Site, Keys: keysLabel(cfg.Contexts[n]), Active: cfg.Contexts[n].Active})
+				infos = append(infos, ui.ContextInfo{Name: n, Site: cfg.Contexts[n].Site, Keys: keysLabel(cfg.Contexts[n]), Auth: cfg.Contexts[n].Auth, Active: cfg.Contexts[n].Active})
 			}
 			return infos, nil
 		}
@@ -432,6 +464,9 @@ func runAuth(args []string) {
 // prints it; the TUI must not write to stdout).
 func loginContext(cfg *config.Config, store config.KeyringStore, name, site, subdomain, org string, openURL func(string) error) (config.Context, error) {
 	entry := cfg.Contexts[name]
+	// Remember the pre-login shape so we can clear stale credentials if this
+	// login converts a key/token context to OAuth.
+	converting := entry.Auth != "oauth" && (entry.Keychain || entry.APIKeyEnv != "" || entry.TokenEnv != "")
 	if site != "" {
 		entry.Site = site
 	}
@@ -476,6 +511,14 @@ func loginContext(cfg *config.Config, store config.KeyringStore, name, site, sub
 	blob, _ := json.Marshal(auth.Credentials{ClientID: clientID, TokenSet: tok})
 	if err := store.SetOAuth(name, string(blob)); err != nil {
 		return entry, err
+	}
+	// Converting away from keys/token: drop the now-unused env references from
+	// the config and the stale secrets from the keychain.
+	if converting {
+		entry.APIKeyEnv, entry.AppKeyEnv, entry.TokenEnv = "", "", ""
+		if err := store.DeleteNonOAuth(name); err != nil {
+			slog.Warn("could not clear old credentials after oauth conversion", "context", name, "err", err)
+		}
 	}
 	entry.Keychain = true
 	entry.Auth = "oauth"
