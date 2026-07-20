@@ -71,7 +71,10 @@ stores OAuth tokens in the OS keychain under a context named after `--org`
 (override with `--context`), and refreshes them automatically from then on.
 Re-run the same command to rotate credentials. Orgs with a custom web
 subdomain add `--subdomain acme-dev` so the browser lands on the right org.
-The same flow lives inside the app: `:ctx` then `O` opens the sign-in form.
+The same flow lives inside the app: in `:ctx`, add a context with the "Browser
+sign-in (OAuth)" auth type, then press `O` on its row to sign in. `O` also
+re-signs-in an OAuth context, or converts a key/token context to OAuth after a
+confirmation.
 
 **Splash + session restore.** On launch a brief full-screen `IKE` splash shows
 (with the version) while your first view loads underneath — it clears after
@@ -254,12 +257,16 @@ Inside the app, `:ctx` lists your orgs:
 
 | Key | Action |
 |-----|--------|
-| `enter` | **Switch** org. A hard boundary: cache, rate-limit budget and navigation history are all dropped — nothing leaks between orgs. |
-| `a` | **Add** a context via a form (name, site, then API/APP keys *or* a bearer token — all masked). Secrets go to the **OS keychain**; only `{site, keychain: true}` is written to the config. |
+| `enter` | **Switch** org. A hard boundary: cache, rate-limit budget and navigation history are all dropped — nothing leaks between orgs. On an OAuth context you haven't signed into yet, it prompts you to press `O`. |
+| `a` | **Add** a context via a form. Pick its **auth type** first: *Browser sign-in (OAuth)*, *API + APP keys*, or *Access token*. Keys/token are masked and go to the **OS keychain**; only `{site, keychain: true, auth}` is written to the config. An OAuth context is created pending — sign in with `O`. |
+| `O` | **Browser sign-in** for the selected context. On an OAuth row it signs in or refreshes; on a key/token row it offers to **convert** the context to OAuth (asks first). Tokens go to the OS keychain and refresh automatically. |
 | `e` | **Edit** the config file in `$EDITOR` (vi by default); on exit it's reloaded and re-validated. |
 | `ctrl-d` | **Delete** the selected context (with confirmation; the active one is protected). |
 
 **Auth options per context:**
+- **OAuth (browser sign-in)** — `ike auth login` or the in-app `O`; tokens live
+  in the OS keychain (`auth: oauth`) and refresh automatically. No env vars, no
+  manual rotation.
 - **Key pair** — point `api-key-env` / `app-key-env` at env vars (populated by
   direnv, 1Password CLI, etc.).
 - **Token** — set `token-env` (or keychain token auth); ike sends it as

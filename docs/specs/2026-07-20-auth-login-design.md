@@ -66,9 +66,18 @@ paths (denied authorize, dead refresh token). Config round-trips the new
 fields. The real-browser path was proven by the spike and is re-validated
 manually before release.
 
+## In-app path
+
+`:ctx` → `a` picks the auth type (Browser sign-in / API + APP keys / Access
+token); OAuth creates a *pending* context (persisted, no tokens). `O` on a row
+runs the login through the shared `loginContext` core: an OAuth row signs in or
+refreshes; a key/token row converts to OAuth behind a confirm modal, and the
+conversion clears the old keychain secrets and env references. `enter` on a
+never-signed-in OAuth context prompts "press O" instead of surfacing a raw
+keychain error.
+
 ## Out of scope
 
 - Token revocation on context delete (keychain entry is deleted; server-side
   revocation endpoint unverified).
-- The `:ctx` add-form gaining an oauth path (CLI-first; form later).
 - Scope selection UI.

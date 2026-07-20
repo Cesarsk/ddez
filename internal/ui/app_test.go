@@ -400,7 +400,7 @@ func TestAppSmoke(t *testing.T) {
 	press(sim, tcell.KeyEscape)         // history was cleared: esc is a no-op
 	waitFor(t, sim, "Monitors(all)")
 
-	// Add a context via the TUI form: name + site + pasted keys.
+	// Add a context via the TUI form: auth choice + name + site + pasted keys.
 	typeCmd(sim, ":ctx")
 	waitFor(t, sim, "Contexts(all)")
 	typeRunes(sim, "a")
@@ -408,17 +408,23 @@ func TestAppSmoke(t *testing.T) {
 	waitFor(t, sim, "How to fill this in") // guidance panel is on screen
 
 	// Save with no input: the validation error must be visible on the form
-	// page itself, not just in the bottom status bar.
-	for i := 0; i < 6; i++ {
-		press(sim, tcell.KeyTab) // skip Name, Site, both keys, token, subdomain
+	// page itself, not just in the bottom status bar. Focus starts on the Auth
+	// dropdown; tab through all 7 fields to the Save button.
+	for i := 0; i < 7; i++ {
+		press(sim, tcell.KeyTab) // Auth, Name, Site, both keys, token, subdomain
 	}
 	press(sim, tcell.KeyEnter) // Save
 	waitFor(t, sim, "✗ Name is required")
-	for i := 0; i < 6; i++ {
-		press(sim, tcell.KeyBacktab) // back to Name
+	for i := 0; i < 7; i++ {
+		press(sim, tcell.KeyBacktab) // back to the Auth dropdown
 	}
 
-	typeRunes(sim, "staging") // Name — spaces would be legal too
+	// Pick "API + APP keys" (open the dropdown, move to option 2, select).
+	press(sim, tcell.KeyEnter)
+	press(sim, tcell.KeyDown)
+	press(sim, tcell.KeyEnter)
+	press(sim, tcell.KeyTab)  // → Name
+	typeRunes(sim, "staging") // spaces would be legal too
 	press(sim, tcell.KeyTab)  // → Site dropdown (keep default US1)
 	press(sim, tcell.KeyTab)  // → API key
 	typeRunes(sim, "pasted-api-key")
@@ -775,17 +781,17 @@ func TestProviderRouting(t *testing.T) {
 	}
 }
 
-// TestOAuthFormFlow: the :ctx 'O' form drives the injected OAuthLogin
-// callback off-thread and folds the resulting context into the list.
-func TestOAuthFormFlow(t *testing.T) {
-	sites := map[string]string{"demo-dev": "datadoghq.eu"}
+// TestRowLoginOAuth: 'O' on an OAuth row signs in directly (no confirm) and
+// folds the refreshed context back into :ctx.
+func TestRowLoginOAuth(t *testing.T) {
+	var loggedIn string
 	app, err := New(Options{
-		Contexts: []ContextInfo{{Name: "demo-dev", Site: "datadoghq.eu", Keys: "built-in"}},
-		Current:  "demo-dev",
-		Factory:  func(name string) (data.Provider, error) { return data.NewDemo(sites[name]), nil },
-		OAuthLogin: func(name, site, subdomain string) (ContextInfo, error) {
-			sites[name] = site
-			return ContextInfo{Name: name, Site: site, Keys: "keychain (oauth)"}, nil
+		Contexts: []ContextInfo{{Name: "dev", Site: "datadoghq.eu", Keys: "keychain (oauth)", Auth: "oauth"}},
+		Current:  "dev",
+		Factory:  func(name string) (data.Provider, error) { return data.NewDemo("datadoghq.eu"), nil },
+		OAuthLogin: func(name string) (ContextInfo, error) {
+			loggedIn = name
+			return ContextInfo{Name: name, Site: "datadoghq.eu", Keys: "keychain (oauth)", Auth: "oauth"}, nil
 		},
 		Refresh: time.Minute,
 	})
@@ -799,15 +805,97 @@ func TestOAuthFormFlow(t *testing.T) {
 	waitFor(t, sim, "Monitors(all)")
 	typeCmd(sim, ":ctx")
 	waitFor(t, sim, "Contexts(all)")
-	typeRunes(sim, "O")
-	waitFor(t, sim, "Sign in with browser (OAuth)")
-	typeRunes(sim, "staging-oauth") // context name field has focus
-	press(sim, tcell.KeyTab)        // → site dropdown (keep default)
-	press(sim, tcell.KeyTab)        // → subdomain (leave empty)
-	press(sim, tcell.KeyTab)        // → Sign in button
+	typeRunes(sim, "O") // OAuth row → sign in directly, no confirm modal
+	waitFor(t, sim, "signed in — context dev ready")
+	if loggedIn != "dev" {
+		t.Fatalf("OAuthLogin called for %q, want dev", loggedIn)
+	}
+	app.Stop()
+}
+
+// TestRowLoginConvertConfirm: 'O' on a key/token row asks first, then converts
+// that context to OAuth once confirmed.
+func TestRowLoginConvertConfirm(t *testing.T) {
+	var loggedIn string
+	app, err := New(Options{
+		Contexts: []ContextInfo{{Name: "keys-org", Site: "datadoghq.com", Keys: "keychain", Auth: ""}},
+		Current:  "keys-org",
+		Factory:  func(name string) (data.Provider, error) { return data.NewDemo("datadoghq.com"), nil },
+		OAuthLogin: func(name string) (ContextInfo, error) {
+			loggedIn = name
+			return ContextInfo{Name: name, Site: "datadoghq.com", Keys: "keychain (oauth)", Auth: "oauth"}, nil
+		},
+		Refresh: time.Minute,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sim := newSim(t)
+	app.SetScreen(sim)
+	go func() { _ = app.Run() }()
+
+	waitFor(t, sim, "Monitors(all)")
+	typeCmd(sim, ":ctx")
+	waitFor(t, sim, "Contexts(all)")
+	typeRunes(sim, "O") // key row → conversion confirm modal
+	waitFor(t, sim, "API + APP key pair")
+	press(sim, tcell.KeyRight) // Cancel → Sign in with browser
 	press(sim, tcell.KeyEnter)
-	waitFor(t, sim, "signed in — context staging-oauth ready")
-	waitFor(t, sim, "keychain (oauth)") // listed in :ctx with the oauth label
+	waitFor(t, sim, "signed in — context keys-org ready")
+	waitFor(t, sim, "keychain (oauth)") // row relabelled after conversion
+	if loggedIn != "keys-org" {
+		t.Fatalf("OAuthLogin called for %q, want keys-org", loggedIn)
+	}
+	app.Stop()
+}
+
+// TestAddOAuthContext: the add form's OAuth choice creates a pending context
+// and points the user at 'O' — no browser opens at add time.
+func TestAddOAuthContext(t *testing.T) {
+	var created string
+	app, err := New(Options{
+		Contexts: []ContextInfo{{Name: "dev", Site: "datadoghq.eu", Keys: "built-in"}},
+		Current:  "dev",
+		Factory:  func(name string) (data.Provider, error) { return data.NewDemo("datadoghq.eu"), nil },
+		AddContext: func(name, site, _, _, _, _ string) (ContextInfo, error) {
+			return ContextInfo{Name: name, Site: site, Keys: "keychain"}, nil
+		},
+		AddOAuthContext: func(name, site, subdomain string) (ContextInfo, error) {
+			created = name
+			return ContextInfo{Name: name, Site: site, Keys: "keychain (oauth)", Auth: "oauth"}, nil
+		},
+		OAuthLogin: func(name string) (ContextInfo, error) {
+			return ContextInfo{Name: name, Site: "datadoghq.eu", Keys: "keychain (oauth)", Auth: "oauth"}, nil
+		},
+		Refresh: time.Minute,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sim := newSim(t)
+	app.SetScreen(sim)
+	go func() { _ = app.Run() }()
+
+	waitFor(t, sim, "Monitors(all)")
+	typeCmd(sim, ":ctx")
+	waitFor(t, sim, "Contexts(all)")
+	typeRunes(sim, "a")
+	waitFor(t, sim, "Add context")
+	// Auth dropdown has focus, defaulting to "Browser sign-in (OAuth)"; leave it.
+	press(sim, tcell.KeyTab) // → Name
+	typeRunes(sim, "staging-oauth")
+	press(sim, tcell.KeyTab) // → Site (keep default)
+	press(sim, tcell.KeyTab) // → API key (skip)
+	press(sim, tcell.KeyTab) // → APP key (skip)
+	press(sim, tcell.KeyTab) // → Access token (skip)
+	press(sim, tcell.KeyTab) // → Subdomain (skip)
+	press(sim, tcell.KeyTab) // → Save
+	press(sim, tcell.KeyEnter)
+	waitFor(t, sim, "context staging-oauth added — press O on it to sign in")
+	if created != "staging-oauth" {
+		t.Fatalf("AddOAuthContext called for %q, want staging-oauth", created)
+	}
+	waitFor(t, sim, "keychain (oauth)")
 	app.Stop()
 }
 
@@ -837,6 +925,13 @@ func newDemoApp(t *testing.T) *App {
 		AddContext: func(name, site, _, _, _, _ string) (ContextInfo, error) {
 			sites[name] = site
 			return ContextInfo{Name: name, Site: site, Keys: "in-memory"}, nil
+		},
+		AddOAuthContext: func(name, site, _ string) (ContextInfo, error) {
+			sites[name] = site
+			return ContextInfo{Name: name, Site: site, Keys: "in-memory (oauth)", Auth: "oauth"}, nil
+		},
+		OAuthLogin: func(name string) (ContextInfo, error) {
+			return ContextInfo{Name: name, Site: sites[name], Keys: "in-memory (oauth)", Auth: "oauth"}, nil
 		},
 		DeleteContext: func(name string) error {
 			delete(sites, name)

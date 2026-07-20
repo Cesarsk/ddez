@@ -163,9 +163,14 @@ Also deliberately skipped: first-run onboarding wizard.
      round-trip — browser authorize (`/oauth2/v1/authorize`, PKCE S256), local
      callback, token exchange (`/oauth2/v1/token`), an authenticated
      `current_user` call, and a token refresh — was validated against a real
-     org with `hack/oauth-spike`. Open design question for the build: which
-     permission scopes to request at authorize time so every ike view and
-     write works (the spike only proved `current_user`).
+     org with `hack/oauth-spike`. Resolved for the build: **no scopes are
+     requested** — the token inherits the user's own permissions (pup-token
+     evidence), so every read view and confirm-gated write works.
+   - **In-app (shipped).** `:ctx` → `a` picks the auth type; choosing *Browser
+     sign-in* creates a pending OAuth context. `O` on a row runs the login
+     (shared `loginContext` core): sign-in/refresh on an OAuth row, or a
+     confirm-gated conversion on a key/token row (which clears the old
+     secrets). `enter` on an unsigned OAuth context prompts "press O".
 
 ### Near-term (rest of Tier 2)
 
