@@ -819,9 +819,9 @@ func TestMultiContextSpanning(t *testing.T) {
 	press(sim, tcell.KeyDown) // demo-dev → demo-prod
 	typeRunes(sim, " ")
 	waitFor(t, sim, "demo-prod activated")
-	// Both rows now read as active in the STATUS column: the current org is
-	// "active (current)", the space-activated one is "active".
-	waitFor(t, sim, "active (current)")
+	// Both rows read "active" in the ACTIVE column — the org being driven and
+	// the space-marked one alike (no separate "current" state in the table).
+	waitForMatch(t, sim, `active\s+demo-dev`)
 	waitForMatch(t, sim, `active\s+demo-prod`)
 
 	// Monitors now span both orgs: CTX column + rows tagged demo-prod, and
