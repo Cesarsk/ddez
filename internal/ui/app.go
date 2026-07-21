@@ -1518,7 +1518,7 @@ type ctxProvider struct {
 var spanningResources = map[string]bool{
 	"monitors": true, "incidents": true, "slos": true, "downtimes": true,
 	"logs": true, "traces": true, "events": true, "services": true, "rum": true,
-	"synthetics": true,
+	"synthetics": true, "costs": true,
 	"dashboards": true, "overview": true,
 }
 

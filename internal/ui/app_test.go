@@ -775,6 +775,28 @@ func TestSplash(t *testing.T) {
 	app.Stop()
 }
 
+// TestCostsView: :costs lists per-product estimated cost with the ALL
+// PRODUCTS month total leading, and enter opens the raw cost record.
+func TestCostsView(t *testing.T) {
+	sim := newSim(t)
+	app := newDemoApp(t)
+	app.SetScreen(sim)
+	go func() { _ = app.Run() }()
+	waitFor(t, sim, "Monitors(all)")
+
+	typeCmd(sim, ":costs")
+	waitFor(t, sim, "Costs(")
+	waitFor(t, sim, "ALL PRODUCTS")   // month total row
+	waitFor(t, sim, "custom_metrics") // per-product row
+	waitFor(t, sim, "%")              // SHARE column populated
+
+	press(sim, tcell.KeyEnter) // detail: the raw month cost record
+	waitFor(t, sim, "total_cost")
+	press(sim, tcell.KeyEscape)
+	waitFor(t, sim, "Costs(")
+	app.Stop()
+}
+
 // TestSessionRestore: switching org + view persists, and a fresh session
 // launched from the persisted values reopens on that org + view (not the
 // default context + monitors).

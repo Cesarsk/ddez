@@ -167,6 +167,8 @@ func (l *Live) Fetch(ctx context.Context, key, query, timeRange string) ([]Row, 
 		return l.synthetics(ctx)
 	case "downtimes":
 		return l.downtimes(ctx)
+	case "costs":
+		return l.costs(ctx)
 	}
 	return nil, fmt.Errorf("unknown resource %q", key)
 }

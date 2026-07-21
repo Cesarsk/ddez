@@ -152,6 +152,7 @@ Switch to any view with `:` + its name or a shorter alias.
 | **Synthetics** | `:synthetics` `:syn` | Synthetic tests: live/paused, name, type, locations, tags. `enter` shows the latest results with a pass rate. |
 | **Overview** | `:overview` `:ov` | Cross-resource triage: open incidents + alerting monitors from every active org, worst first. `enter` opens the real detail. |
 | **Downtimes** | `:downtimes` `:dt` `:mutes` | Scheduled/active monitor mutes: status, scope, message, created. |
+| **Costs** | `:costs` `:usage` `:billing` | Estimated cost per product for the current and previous month, each with its share of the month total. Data lags up to 72h; the endpoint requires a parent-level org. |
 | **Dashboards** | `:dashboards` `:dash` `:d` | Title, layout, author, modified. |
 | **Contexts** | `:ctx` | Your Datadog orgs — switch, add, edit, delete (see [contexts](#multiple-orgs-contexts--auth)). |
 | **Settings** | `:settings` | Theme, per-view cache TTLs and columns — edited live (see [settings](#settings-view)). |
@@ -458,6 +459,7 @@ contexts:
 | `traces` | TIME, SERVICE, RESOURCE, DURATION, ERR, TRACE_ID |
 | `events` | TIME, TYPE, SOURCE, TITLE, TAGS |
 | `downtimes` | STATUS, SCOPE, MESSAGE, CREATED |
+| `costs` | MONTH, ORG, PRODUCT, COST, SHARE |
 | `dashboards` | TITLE, LAYOUT, AUTHOR, MODIFIED |
 | `contexts.<name>.site` | Datadog site (must be a known Datadog host — validated). |
 | `contexts.<name>.subdomain` | Custom web-UI subdomain, for deep links only. |

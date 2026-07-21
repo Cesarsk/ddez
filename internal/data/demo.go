@@ -110,6 +110,8 @@ func (d *Demo) Fetch(_ context.Context, key, query, timeRange string) ([]Row, er
 		return d.synthetics(), nil
 	case "downtimes":
 		return d.downtimes(), nil
+	case "costs":
+		return d.costs(), nil
 	}
 	return nil, fmt.Errorf("unknown resource %q", key)
 }
@@ -697,6 +699,58 @@ func (d *Demo) downtimes() []Row {
 			URL:   WebBase(d.site) + "/monitors/downtimes",
 		})
 	}
+	return rows
+}
+
+// costs mirrors the live estimated-cost table: two months of per-product
+// charges with a leading ALL PRODUCTS total per month. The current month is
+// partial (month-to-date) so its numbers sit below the previous month's,
+// except custom metrics — left spiking so the demo has a story to find.
+func (d *Demo) costs() []Row {
+	now := time.Now().UTC()
+	cur := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+	products := []struct {
+		name      string
+		prev, cur float64
+	}{
+		{"infra_hosts", 11200, 7400},
+		{"custom_metrics", 5200, 8400},
+		{"logs_indexed", 4100, 2700},
+		{"apm_hosts", 3800, 2500},
+		{"synthetics_api_tests", 580, 390},
+	}
+	months := []struct {
+		month time.Time
+		pick  func(prev, cur float64) float64
+	}{
+		{cur, func(_, c float64) float64 { return c }},
+		{cur.AddDate(0, -1, 0), func(p, _ float64) float64 { return p }},
+	}
+	rows := make([]Row, 0, (len(products)+1)*len(months))
+	for _, m := range months {
+		month := m.month.Format("2006-01")
+		var total float64
+		for _, p := range products {
+			total += m.pick(p.prev, p.cur)
+		}
+		raw := map[string]any{"org": "acme-prod", "month": month, "total_cost": total}
+		rows = append(rows, Row{
+			ID:    month + "/acme-prod/" + allProducts,
+			Cells: []string{month, "acme-prod", allProducts, money(total), share(total, total)},
+			Raw:   raw,
+			URL:   WebBase(d.site) + "/billing/usage",
+		})
+		for _, p := range products {
+			cost := m.pick(p.prev, p.cur)
+			rows = append(rows, Row{
+				ID:    month + "/acme-prod/" + p.name,
+				Cells: []string{month, "acme-prod", p.name, money(cost), share(cost, total)},
+				Raw:   raw,
+				URL:   WebBase(d.site) + "/billing/usage",
+			})
+		}
+	}
+	sortCostRows(rows)
 	return rows
 }
 

@@ -63,7 +63,7 @@ func (a *App) setHints() {
 			"[aqua]<:>[white]cmd  [aqua]</>[white]filter  [aqua]<enter>[white]details  [aqua]<o>[white]open  [aqua]<c>[white]copy  [aqua]<C>[white]cols",
 			fmt.Sprintf("[aqua]<ctrl-r>[white]refresh  [aqua]<p>[white]auto:%s  [aqua]<esc>[white]back  [aqua]<?>[white]help  [aqua]<q>[white]quit", refresh),
 			"",
-			"[orange]:monitors :incidents :slos :logs :traces :services :events :downtimes :dashboards :ctx :settings",
+			"[orange]:monitors :incidents :slos :logs :traces :services :events :downtimes :costs :dashboards :ctx :settings",
 		}
 		switch a.res.Key {
 		case "monitors":
@@ -86,6 +86,8 @@ func (a *App) setHints() {
 			lines = append(lines, "[gray]</>RUM query (e.g. @type:error)  window: <1>15m..<5>7d  <s>sort")
 		case "synthetics":
 			lines = append(lines, "[gray]<enter>latest results + pass rate  <s>sort <S>reverse")
+		case "costs":
+			lines = append(lines, "[gray]<enter>raw cost record  <s>sort <S>reverse   estimated, lags up to 72h")
 		case overviewResource.Key:
 			lines = append(lines, "[gray]<enter>detail  open incidents + alerting monitors across every active org")
 		case ctxResource.Key:
@@ -103,7 +105,7 @@ func (a *App) buildHelp() tview.Primitive {
 	fmt.Fprint(tv, a.theme.recolor(`
  [orange]NAVIGATION
    [aqua]:<resource>[white]   switch view: monitors incidents slos logs traces services
-                 events rum synthetics downtimes dashboards (aliases: mon inc s l tr svc ev dt d syn)
+                 events rum synthetics downtimes costs dashboards (aliases: mon inc s l tr svc ev dt d syn)
                  — :overview (cross-org triage) / :ctx / :settings
    [aqua]enter[white]         detail — full object on demand; SLO error budget; monitor metric
                  sparkline; on a dashboard its widget grid; on logs/traces a row
@@ -191,7 +193,7 @@ func (a *App) buildIntro() tview.Primitive {
 
  [orange]2 · Look around[white]
    [aqua]:monitors :incidents :slos :logs :traces :services :events :rum
-   :synthetics :downtimes :dashboards[white] switch views; [aqua]:overview[white] is
+   :synthetics :downtimes :costs :dashboards[white] switch views; [aqua]:overview[white] is
    cross-org triage. [aqua]enter[white] drills into a row, [aqua]esc[white] goes back,
    [aqua]o[white] opens the row in the Datadog web UI.
 

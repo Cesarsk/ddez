@@ -359,6 +359,14 @@ func Resources() []Resource {
 			Columns: []string{"STATUS", "SCOPE", "MESSAGE", "CREATED"},
 			TTL:     60 * time.Second,
 		},
+		{
+			// Estimated cost per product, current + previous month. The data
+			// lags up to 72h and moves slowly — long TTL, no auto-refresh.
+			Key: "costs", Title: "Costs",
+			Aliases: []string{"costs", "cost", "usage", "billing"},
+			Columns: []string{"MONTH", "ORG", "PRODUCT", "COST", "SHARE"},
+			TTL:     30 * time.Minute,
+		},
 	}
 }
 
