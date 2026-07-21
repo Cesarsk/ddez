@@ -1118,16 +1118,23 @@ func TestCostView(t *testing.T) {
 	pressRune(sim, 's') // sub-org breakdown: an ORG column with the demo split
 	waitFor(t, sim, "ORG")
 	waitFor(t, sim, "demo-staging")
-	pressRune(sim, 's') // back to summary
+	press(sim, tcell.KeyEnter) // focus the highest-cost sub-org
+	waitFor(t, sim, "(enter cycles)")
+	waitFor(t, sim, "$8,260") // demo-prod's 70% share of the month
+	pressRune(sim, 's')       // back to summary (resets the focus too)
 	waitFor(t, sim, "$11,800")
 
-	pressRune(sim, '3') // last 3 months: trend section + a closed-month total
+	pressRune(sim, '3') // last 3 months: trend section + anomaly deltas
 	waitFor(t, sim, "MONTH")
 	waitFor(t, sim, "(in progress)")
-	waitFor(t, sim, "$22,770") // demo closed-month total (full projected figure)
+	waitFor(t, sim, "Δ PREV")
+	waitFor(t, sim, "unusual move")
 
-	pressRune(sim, ']') // select the closed month: actuals, not an estimate
+	pressRune(sim, ']') // select the closed month: actuals + the planted spike
 	waitFor(t, sim, "month total")
+	waitFor(t, sim, "$25,695") // demo closed-month total
+	waitFor(t, sim, "+44%")    // logs_indexed spike vs the month before
+	waitFor(t, sim, "⚠")
 
 	pressRune(sim, '/') // client-side filter over the breakdown lines
 	typeRunes(sim, "logs")
@@ -1139,6 +1146,19 @@ func TestCostView(t *testing.T) {
 	press(sim, tcell.KeyEscape)
 	waitFor(t, sim, "Monitors(all)")
 	app.Stop()
+}
+
+// TestRenderCostRootGuard: a sub-org view with only one org visible explains
+// that the breakdown is served from the root organization.
+func TestRenderCostRootGuard(t *testing.T) {
+	v := &data.CostView{OrgName: "acme", Currency: "USD", Months: []data.CostMonth{{
+		Month: "2026-07", Current: true, Total: 10,
+		Lines: []data.CostLine{{Org: "acme", Product: "infra_hosts", Total: 10}},
+	}}}
+	out := renderCost(costRender{view: v, subOrgs: true})
+	if !strings.Contains(out, "only one org visible") || !strings.Contains(out, "root organization") {
+		t.Fatalf("expected root-org guidance, got:\n%s", out)
+	}
 }
 
 func newDemoApp(t *testing.T) *App {

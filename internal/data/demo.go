@@ -85,7 +85,7 @@ func (d *Demo) Cost(_ context.Context, o CostOptions) (*CostView, error) {
 		{Product: "infra_hosts", Total: 4820, Projected: 9100},
 		{Product: "logs_indexed", Total: 3110, Projected: 6250},
 		{Product: "apm_hosts", Total: 2040, Projected: 3900},
-		{Product: "custom_metrics", Total: 980, Projected: 1850},
+		{Product: "custom_metrics", Total: 980, Projected: 1800},
 		{Product: "rum_sessions", Total: 610, Projected: 1200},
 		{Product: "synthetics", Total: 240, Projected: 470},
 	}
@@ -99,16 +99,24 @@ func (d *Demo) Cost(_ context.Context, o CostOptions) (*CostView, error) {
 	now := time.Now().UTC()
 	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
 
-	v := &CostView{OrgName: "demo (" + d.site + ")", Currency: "USD"}
+	v := &CostView{
+		OrgName:  "demo (" + d.site + ")",
+		Currency: "USD",
+		URL:      WebBase(d.site) + "/billing/usage",
+	}
 	for i := 0; i < months; i++ {
 		m := CostMonth{Month: monthStart.AddDate(0, -i, 0).Format("2006-01"), Current: i == 0}
-		// Closed months bill the full projected figure, scaled by a small
-		// deterministic wobble so the trend section has a shape.
-		scale := 1.0 + 0.06*float64((i*7)%5-2)
-		for _, p := range products {
+		// Closed months bill the full projected figure, with a per-product
+		// deterministic wobble so the trend and the month-over-month deltas
+		// have a shape, plus one planted spike so the anomaly flag shows.
+		for pi, p := range products {
 			total, projected := p.Total, p.Projected
 			if i > 0 {
+				scale := 1.0 + 0.05*float64((i*7+pi*3)%5-2)
 				total, projected = p.Projected*scale, 0
+				if i == 1 && p.Product == "logs_indexed" {
+					total *= 1.6
+				}
 			}
 			m.Lines = append(m.Lines, demoCostLines(p.Product, total, projected, o.SubOrgs)...)
 		}

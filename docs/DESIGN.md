@@ -197,8 +197,13 @@ one-time getting-started page (`:manual`).
    `GetEstimatedCostByOrg` + `GetProjectedCost`) plus up to 12 closed months
    (`GetHistoricalCostByOrg`) rendered as a month trend with a selectable
    month's per-product breakdown, an optional sub-org split (the API's
-   `view=sub-org`), and a client-side line filter. Read-only, at most three
-   bounded calls per fetch. The usage/billing API is admin-scoped
+   `view=sub-org`, with enter cycling a single-org focus and a "needs the
+   root org" notice when no children are visible), a client-side line filter,
+   and `o` deep-linking to the billing/usage page. Read-only, at most three
+   bounded calls per fetch. **Anomalies are computed client-side** — Datadog
+   has no billing-anomaly endpoint — as month-over-month per-line deltas,
+   flagged only when both the relative (±30%) and absolute (≥$100) thresholds
+   are cleared, so small lines can't spam the flag. The usage/billing API is admin-scoped
    (`usage_read`), so a non-privileged user gets a graceful "needs usage_read"
    message rather than a broken view — an accepted trade-off (it's dark for
    non-admins). This is the Datadog bill, not cloud (AWS/GCP/Azure) cost;
