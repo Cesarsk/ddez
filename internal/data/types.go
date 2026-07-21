@@ -51,10 +51,12 @@ type CostOptions struct {
 }
 
 // CostView is one org's Datadog spend over a range of months, newest first.
-// Amounts are in Currency (USD unless the org bills otherwise).
+// Amounts are in Currency (USD unless the org bills otherwise). URL deep-links
+// to the org's billing/usage page in the Datadog web UI.
 type CostView struct {
 	OrgName  string
 	Currency string
+	URL      string
 	Months   []CostMonth
 }
 

@@ -349,6 +349,8 @@ Inside the panel:
 | `[` / `]` | select a newer / older month (its breakdown is shown below the trend) |
 | `/` | filter the breakdown lines by product or org name (client-side, live) |
 | `s` | toggle sub-org breakdown (adds an ORG column; parent orgs only) |
+| `enter` | in sub-org mode: focus one sub-org's breakdown (cycles through them, then back to all) |
+| `o` | open the org's billing/usage page in the Datadog web UI |
 | `ctrl-r` | re-fetch the current range |
 | `esc` | clear the filter if one is active, else back |
 
@@ -356,6 +358,21 @@ With a range longer than one month, a **trend section** lists each month's
 total with a bar and the percentage change vs the month before (red = spend
 went up). The current month is marked *(in progress)*; its total is the
 estimate so far, while closed months show the actual billed total.
+
+**Anomalies.** With history loaded, every breakdown line gets a `Δ PREV`
+column: its change vs the same product the month before (the current month
+compares its *projection*, so a half-elapsed month doesn't read as a drop).
+A move is flagged `⚠` when it is both large in relative terms (±30%) and in
+absolute terms (≥ $100) — a 3x jump on a $5 line is noise, not an anomaly.
+Products that appear with no line the month before show `new`. Flagged months
+in the trend get the same marker, and a summary line counts the unusual moves.
+Datadog has no billing-anomaly API; this is computed client-side from the
+history already on screen, so it costs no extra API calls.
+
+**Sub-orgs need the root org.** Datadog serves the sub-org breakdown only
+from the parent (root) organization. If `s` shows just one org, either the
+org has no children or your context is signed into a sub-org — add a context
+for the root organization in `:ctx` and switch to it.
 
 This is your **Datadog bill**, not your cloud (AWS/GCP/Azure) bill. It comes
 from Datadog's usage-metering API, which is **admin-scoped**: it needs the

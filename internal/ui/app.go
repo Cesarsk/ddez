@@ -171,12 +171,13 @@ type App struct {
 	cost     *tview.TextView // :cost — Datadog spend panel
 	// :cost panel state: the loaded view plus the local range / month
 	// selection / sub-org / filter knobs the key handler drives.
-	costView   *data.CostView
-	costMonths int             // fetch range: 1, 3, 6 or 12 months
-	costSel    int             // selected month index into costView.Months
-	costSubOrg bool            // "sub-org" API view instead of "summary"
-	costFilter string          // client-side substring filter over org/product
-	splash     *tview.TextView // startup logo, auto-dismissed
+	costView     *data.CostView
+	costMonths   int             // fetch range: 1, 3, 6 or 12 months
+	costSel      int             // selected month index into costView.Months
+	costSubOrg   bool            // "sub-org" API view instead of "summary"
+	costOrgFocus string          // sub-org focus ("" = all; enter cycles)
+	costFilter   string          // client-side substring filter over org/product
+	splash       *tview.TextView // startup logo, auto-dismissed
 	// Log surrounding-context panel (x in :logs): a caption + a selectable
 	// table of the ±window, so lines can be navigated and expanded.
 	logCtxFlex *tview.Flex
@@ -903,6 +904,12 @@ func (a *App) keys(ev *tcell.EventKey) *tcell.EventKey {
 		case ev.Rune() == 's':
 			a.costSubOrg = !a.costSubOrg
 			a.showCost()
+			return nil
+		case ev.Key() == tcell.KeyEnter:
+			a.cycleCostOrg()
+			return nil
+		case ev.Rune() == 'o':
+			a.openCostURL()
 			return nil
 		case ev.Rune() == '[':
 			a.moveCostMonth(-1) // newer

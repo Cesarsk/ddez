@@ -50,7 +50,7 @@ func (l *Live) Cost(ctx context.Context, o CostOptions) (*CostView, error) {
 		return nil, apiErr("cost (estimated)", err)
 	}
 
-	v := &CostView{Currency: "USD"}
+	v := &CostView{Currency: "USD", URL: l.web + "/billing/usage"}
 	cur := &CostMonth{Month: now.Format("2006-01"), Current: true}
 	lines := map[string]*CostLine{}
 	for _, org := range est.GetData() {
