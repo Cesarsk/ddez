@@ -40,10 +40,19 @@ main.go                 flags, provider wiring
 internal/data/
   types.go              Row, Resource registry (columns, TTLs, aliases), Provider iface
   cache.go              TTL cache + stale-on-error, the rate-limit defence
-  live.go               datadog-api-client-go v2; rate-limit header tracking
+  live.go               Live core: client, auth, track, Fetch/FetchDetail dispatch
+  live_<resource>.go    one file per Datadog resource family (monitors, incidents,
+                        slos, logs, traces, dashboards, events, downtimes, rum,
+                        synthetics) — datadog-api-client-go v2 calls + row mapping
   demo.go               offline provider with plausible SRE data (--demo)
 internal/ui/
-  app.go                tview shell: header, table, prompt, status, keys
+  app.go                tview shell: App struct, build, key dispatch, load, nav
+  contexts.go           :ctx view, add/edit form, O login, delete, org spanning
+  correlation.go        the debugging loop: log/trace drills, log-context panel
+  detail.go             detail + dashboard + structured-body renderers
+  render.go             table render, row colour, header + rate-limit budget
+  writes.go             confirm-gated write paths (mute, incident, downtime)
+  help.go               hints line, help page, first-run getting-started page
   app_test.go           headless end-to-end smoke test (tcell SimulationScreen)
   screendump_test.go    README screenshot generator (IKE_DUMP=1)
 ```
