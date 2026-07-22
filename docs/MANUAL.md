@@ -417,6 +417,11 @@ lifecycle is faked, so you can practise safely. There is no page inbox: the
 Datadog API has no list-pages endpoint, so ike acts on the page it raised in
 this session, not on pages raised elsewhere.
 
+Paging goes through region-specific On-Call "cell" hosts, not the usual
+`api.<site>`. ike maps EU orgs to their cell automatically. US1 defaults to
+the primary cell; if your US org lives on a different cell the page call will
+report it, and cell selection there is a known rough edge.
+
 Why teams and not schedules? Datadog's API has no "list all schedules"
 endpoint, so teams are the way in. Each team's routing rules point at its
 schedule and escalation policy, and that is what the panel resolves.
