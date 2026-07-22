@@ -312,10 +312,11 @@ more than one org active, every view merges rows from all of them and shows a
 alerting monitors across all of them. Details, drill-downs and writes on a row
 always go to that row's org, and the header shows one rate-limit budget line
 per org. Deactivating (space again) tears that org's cache down. The
-activation persists in the config (`active: true`). One rule: the org you are
-**driving** cannot leave the views — pressing `space` on it only controls
-whether it stays active after you switch away (ike tells you so in the status
-bar), and its row stays highlighted until you switch to another org.
+activation persists in the config (`active: true`). Pressing `space` on the org
+you are **driving** drops it too: the driver role hands off to the next active
+org and the old one leaves the set, without moving you off the context list.
+That is refused only when it's your last active org — you must always be
+driving something, so activate another first.
 
 ---
 
@@ -470,7 +471,7 @@ either way.
 | `P` | Logs | cluster into patterns |
 | `Q` | Logs/Traces/Events | saved-query picker (enter apply · `a` save · `d` delete) |
 | `F` | any table | fuzzy row finder: type a subsequence, `enter` jumps to the row |
-| `space` | Contexts | activate/deactivate a context for org-spanning views |
+| `space` | Contexts | activate/deactivate a context for org-spanning views (on the driven org: hand off + drop) |
 | `r` | Incidents | change state |
 | `v` | Incidents | change severity |
 | `I` | Incidents | assign commander (user picker; you pinned on top) |
