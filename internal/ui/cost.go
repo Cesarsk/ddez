@@ -48,6 +48,9 @@ type costLineDelta struct {
 // / filters lines client-side; enter drills into the selected line's
 // month-by-month history; o opens the billing page.
 func (a *App) showCost() {
+	if !a.requireContext() {
+		return // no org selected — the data views are gated
+	}
 	if a.page != "cost" {
 		a.pushNav()
 	}

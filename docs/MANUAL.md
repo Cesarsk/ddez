@@ -315,8 +315,9 @@ per org. Deactivating (space again) tears that org's cache down. The
 activation persists in the config (`active: true`). Pressing `space` on the org
 you are **driving** drops it too: the driver role hands off to the next active
 org and the old one leaves the set, without moving you off the context list.
-That is refused only when it's your last active org — you must always be
-driving something, so activate another first.
+Dropping your **last** active org is allowed — it leaves no context selected,
+and the other views are gated (a warning asks you to pick one) until you
+activate a context again with `space` or `enter`.
 
 ---
 
