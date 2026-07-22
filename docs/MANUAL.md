@@ -156,6 +156,7 @@ Switch to any view with `:` + its name or a shorter alias.
 | **On-Call** | `:oncall` `:oc` `:schedules` | Your teams. `enter` on a team shows who's on call right now and the escalation ladder (read-only). Needs Datadog On-Call, see below. |
 | **Downtimes** | `:downtimes` `:dt` `:mutes` | Scheduled/active monitor mutes: status, scope, message, created. |
 | **Dashboards** | `:dashboards` `:dash` `:d` | Title, layout, author, modified. |
+| **Menu** | `:menu` `:commands` `:aliases` | Every command with its aliases and what it opens. `enter` on a row runs it, so it doubles as a command palette. Start here if you're not sure what exists. |
 | **Contexts** | `:ctx` | Your Datadog orgs — switch, add, edit, delete (see [contexts](#multiple-orgs-contexts--auth)). |
 | **Settings** | `:settings` | Theme, per-view cache TTLs and columns — edited live (see [settings](#settings-view)). |
 | **Getting started** | `:manual` | The first-run walkthrough, reopenable any time (also `:instructions`). |

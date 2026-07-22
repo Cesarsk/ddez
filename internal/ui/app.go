@@ -1608,6 +1608,10 @@ func (a *App) execCommand(cmd string) {
 		a.switchResource(overviewResource)
 		return
 	}
+	if cmd == "menu" || cmd == "commands" || cmd == "cmds" || cmd == "aliases" {
+		a.showMenu()
+		return
+	}
 	if cmd == "cost" || cmd == "costs" || cmd == "billing" {
 		a.showCost()
 		return
@@ -1617,7 +1621,7 @@ func (a *App) execCommand(cmd string) {
 		a.persistSession() // remember this view for the next session
 		return
 	}
-	a.flash(fmt.Sprintf("unknown command %q — try :monitors :incidents :slos :logs :dashboards :ctx :settings", cmd), true)
+	a.flash(fmt.Sprintf("unknown command %q — :menu lists every command", cmd), true)
 }
 
 // commandCompletions returns the ':' command names offered by autocomplete —
@@ -1629,7 +1633,7 @@ func commandCompletions(prefix string) []string {
 	for _, r := range data.Resources() {
 		names = append(names, r.Key)
 	}
-	names = append(names, "ctx", "overview", "cost", "settings", "help", "manual", "quit")
+	names = append(names, "ctx", "overview", "cost", "menu", "settings", "help", "manual", "quit")
 	var out []string
 	for _, n := range names {
 		if strings.HasPrefix(n, prefix) {
@@ -1978,6 +1982,13 @@ func (a *App) load(force bool) {
 	if a.res.Key == ctxResource.Key {
 		// The :ctx view is served from the app's own config, not a Provider.
 		a.rows = a.contextRows()
+		a.fetchedAt = time.Now()
+		a.applyFilter()
+		return
+	}
+	if a.res.Key == menuResource.Key {
+		// The :menu view is the app's own command catalog, not a Provider.
+		a.rows = a.menuRows()
 		a.fetchedAt = time.Now()
 		a.applyFilter()
 		return

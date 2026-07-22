@@ -192,7 +192,10 @@ stateDiagram-v2
 The `:ctx` view is a pseudo-resource: rendered through the same table
 pipeline (filter, colors, selection) but served from the app's own context
 list instead of a Provider, and `enter` switches org instead of opening a
-detail view.
+detail view. `:menu` is another such pseudo-resource: its rows are the
+command catalog (generated from the resource registry plus the
+pseudo-commands, so it never drifts), and `enter` runs the selected command,
+making it a self-documenting command palette.
 
 The diagram shows the core states; the same push/pop stack drives the other
 overlay pages too — the dashboard grid, the trace waterfall, log patterns
