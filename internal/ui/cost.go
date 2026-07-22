@@ -430,7 +430,7 @@ func renderCostProduct(v *data.CostView, org, product string) string {
 		rows = append(rows, ml)
 	}
 
-	fmt.Fprintf(&b, "  [gray]%-9s  %12s  %7s  %6s[-]\n", "MONTH", "TOTAL", "Δ PREV", "SHARE")
+	fmt.Fprintf(&b, "  [gray]%-9s  %12s  %7s  %9s[-]\n", "MONTH", "TOTAL", "Δ PREV", "% OF BILL")
 	for i, ml := range rows {
 		total := money(v.Currency, ml.total)
 		if !ml.found {
@@ -465,7 +465,7 @@ func renderCostProduct(v *data.CostView, org, product string) string {
 				suffix = fmt.Sprintf(" [gray](in progress · projected %s)[-]", money(v.Currency, ml.projected))
 			}
 		}
-		fmt.Fprintf(&b, "  %-9s  %12s  %s  %6s  %s%s\n",
+		fmt.Fprintf(&b, "  %-9s  %12s  %s  %9s  %s%s\n",
 			ml.month, total, delta, share, costBar(ml.total, maxTotal), suffix)
 	}
 	if len(rows) == 1 {

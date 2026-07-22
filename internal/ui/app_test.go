@@ -1144,7 +1144,7 @@ func TestCostView(t *testing.T) {
 
 	press(sim, tcell.KeyEnter) // drill: per-month history with share of the bill
 	waitFor(t, sim, "month by month")
-	waitFor(t, sim, "SHARE")
+	waitFor(t, sim, "% OF BILL")
 	press(sim, tcell.KeyEscape)
 	waitFor(t, sim, "Datadog spend")
 
