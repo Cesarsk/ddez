@@ -633,17 +633,29 @@ func TestDropDrivenContext(t *testing.T) {
 	typeCmd(sim, ":ctx")
 	waitFor(t, sim, "Contexts(all)")
 
-	// dev is the driven org (row 1) and the only active one — space is refused.
-	pressRune(sim, ' ')
-	waitFor(t, sim, "only active org")
-
-	// Activate stage (row 2), go back to dev, drop it → driver hands to stage.
+	// Handoff: activate stage (row 2), back to dev, drop it → driver → stage.
 	pressRune(sim, 'j')
 	pressRune(sim, ' ')
 	waitFor(t, sim, "stage activated")
 	pressRune(sim, 'k')
 	pressRune(sim, ' ')
 	waitFor(t, sim, "dropped dev — now driving stage")
+
+	// Drop the last active org (stage, row 2) → no-context state.
+	pressRune(sim, 'j')
+	pressRune(sim, ' ')
+	waitFor(t, sim, "no context selected")
+
+	// Gated: a data view is refused and we stay on :ctx.
+	typeCmd(sim, ":monitors")
+	waitFor(t, sim, "select a context")
+	waitForMatch(t, sim, `Contexts\(`)
+
+	// Pick a context again (stage, under the cursor) → the gate lifts.
+	pressRune(sim, ' ')
+	waitFor(t, sim, "now driving")
+	typeCmd(sim, ":monitors")
+	waitFor(t, sim, "Monitors(all)")
 	app.Stop()
 }
 

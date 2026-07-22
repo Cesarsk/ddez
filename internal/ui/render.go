@@ -218,7 +218,11 @@ func (a *App) updateInfo() {
 	}
 	// Escape: context names like "staging" would otherwise parse as tview
 	// color tags inside this dynamic-colors TextView and vanish.
-	mode := tview.Escape(fmt.Sprintf("%s [%s]", a.provider.Mode(), a.current))
+	cur := a.current
+	if cur == "" {
+		cur = "no context"
+	}
+	mode := tview.Escape(fmt.Sprintf("%s [%s]", a.provider.Mode(), cur))
 	modeColor := "green"
 	if a.provider.Mode() == "demo" {
 		modeColor = "yellow"

@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -128,7 +129,16 @@ func (a *App) toggleContextActive(name string) {
 			}
 			a.providers[name] = data.NewCached(p)
 			a.ctxInfos[i].Active = true
-			a.flash("context "+name+" activated — spanning views merge it", false)
+			if a.current == "" {
+				// First org picked out of the no-context state: it becomes the
+				// driver, which lifts the gate on the other views.
+				a.current = name
+				a.provider = a.providers[name]
+				a.persistSession()
+				a.flash("context "+name+" activated — now driving it; enter or :<view> to open", false)
+			} else {
+				a.flash("context "+name+" activated — spanning views merge it", false)
+			}
 		} else { // deactivate
 			a.ctxInfos[i].Active = false
 			delete(a.providers, name) // hard teardown, same boundary as a switch
@@ -144,15 +154,30 @@ func (a *App) toggleContextActive(name string) {
 	}
 }
 
+// errNoContext backs the sentinel provider held while nothing is selected, so
+// any stray fetch fails safely instead of nil-panicking.
+var errNoContext = errors.New("no context selected")
+
 // dropDrivenContext removes the org you're currently driving from the active
-// set by handing the driver role to the next active org, then tearing the old
-// one down. Refused when it's the only active org — you must always be driving
-// something. Stays on the :ctx page (a lightweight re-anchor, not a full
-// switchContext that would reset navigation and jump to :monitors).
+// set. If another org is active the driver role hands off to it and you keep
+// working; if this was the last active org you drop into the no-context state,
+// gated on :ctx until you pick one again (activateContext / enter). Stays on
+// the :ctx page — a lightweight re-anchor, not a full switchContext that would
+// reset navigation and jump to :monitors.
 func (a *App) dropDrivenContext(name string) {
 	next := a.nextActiveOther(name)
 	if next == "" {
-		a.flash("context "+name+" is your only active org — activate another (space) first", false)
+		delete(a.providers, name)
+		a.setCtxActiveFlag(name, false)
+		a.current = ""
+		a.provider = data.NewCached(data.NewErrored("-", errNoContext))
+		a.stack = nil // nothing to esc back to — you must pick a context
+		if a.opts.PersistActive != nil {
+			_ = a.opts.PersistActive(name, false)
+		}
+		a.persistSession()
+		a.flash("no context selected — activate one (space or enter) to use other views", true)
+		a.load(false)
 		return
 	}
 	p, ok := a.providers[next]
@@ -168,14 +193,8 @@ func (a *App) dropDrivenContext(name string) {
 	a.current = next // hand off the driver role
 	a.provider = p
 	delete(a.providers, name) // drop the old org
-	for i := range a.ctxInfos {
-		switch a.ctxInfos[i].Name {
-		case name:
-			a.ctxInfos[i].Active = false
-		case next:
-			a.ctxInfos[i].Active = true // the new driver is a member
-		}
-	}
+	a.setCtxActiveFlag(name, false)
+	a.setCtxActiveFlag(next, true) // the new driver is a member
 	if a.opts.PersistActive != nil {
 		if err := a.opts.PersistActive(name, false); err != nil {
 			slog.Warn("persist active failed", "context", name, "err", err)
@@ -195,6 +214,30 @@ func (a *App) nextActiveOther(name string) string {
 		}
 	}
 	return ""
+}
+
+// setCtxActiveFlag sets an org's Active membership flag by name.
+func (a *App) setCtxActiveFlag(name string, v bool) {
+	for i := range a.ctxInfos {
+		if a.ctxInfos[i].Name == name {
+			a.ctxInfos[i].Active = v
+			return
+		}
+	}
+}
+
+// requireContext gates the data views on having a driven org. With nothing
+// selected it warns, forces the :ctx view and returns false, so the caller
+// aborts the navigation.
+func (a *App) requireContext() bool {
+	if a.current != "" {
+		return true
+	}
+	a.flash("select a context (space or enter) to use other views", true)
+	if !(a.page == "table" && a.res.Key == ctxResource.Key) {
+		a.showContexts()
+	}
+	return false
 }
 
 // switchContext moves the current context. The target keeps its cache if it

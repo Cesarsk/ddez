@@ -307,21 +307,8 @@ type navEntry struct {
 }
 
 func New(o Options) (*App, error) {
-	p, startErr := o.Factory(o.Current)
-	if startErr != nil {
-		// Don't exit: open on the :ctx view so the user can add or fix a
-		// context from inside the TUI (first-run experience with no keys).
-		site := "-"
-		for _, c := range o.Contexts {
-			if c.Name == o.Current {
-				site = c.Site
-			}
-		}
-		p = data.NewErrored(site, startErr)
-	}
 	a := &App{
 		Application:  tview.NewApplication(),
-		provider:     data.NewCached(p),
 		providers:    map[string]*data.Cached{},
 		opts:         o,
 		ctxInfos:     o.Contexts,
@@ -330,11 +317,30 @@ func New(o Options) (*App, error) {
 		queries:      map[string]string{},
 		history:      map[string][]string{},
 	}
-	a.providers[o.Current] = a.provider
+	var startErr error
+	if o.Current != "" {
+		p, err := o.Factory(o.Current)
+		if err != nil {
+			// Don't exit: open on the :ctx view so the user can add or fix a
+			// context from inside the TUI (first-run experience with no keys).
+			startErr = err
+			site := "-"
+			for _, c := range o.Contexts {
+				if c.Name == o.Current {
+					site = c.Site
+				}
+			}
+			p = data.NewErrored(site, err)
+		}
+		a.provider = data.NewCached(p)
+		a.providers[o.Current] = a.provider
+	} else {
+		a.provider = data.NewCached(data.NewErrored("-", errNoContext))
+	}
 	// Bring up providers for contexts persisted as active. A failure only
 	// deactivates that context (with a log); it never blocks startup.
 	for i, c := range o.Contexts {
-		if !c.Active || c.Name == o.Current {
+		if !c.Active || c.Name == a.current {
 			continue
 		}
 		ap, err := o.Factory(c.Name)
@@ -345,14 +351,32 @@ func New(o Options) (*App, error) {
 		}
 		a.providers[c.Name] = data.NewCached(ap)
 	}
+	// No driver named but an org is active → adopt the first active one, so a
+	// stale empty "current" doesn't gate a perfectly usable session.
+	if a.current == "" {
+		for _, c := range a.ctxInfos {
+			if p, ok := a.providers[c.Name]; c.Active && ok {
+				a.current, a.provider = c.Name, p
+				break
+			}
+		}
+	}
 	a.build()
-	if startErr != nil {
+	switch {
+	case a.current == "":
+		// No context selected: gated on :ctx until the user picks one.
+		a.showContexts()
+		a.flash("no context selected — activate one (space or enter) to use other views", true)
+		if o.FirstRun {
+			a.showIntro()
+		}
+	case startErr != nil:
 		a.showContexts()
 		a.flash("✗ context "+o.Current+": "+startErr.Error()+" — press <a> to add a context", true)
 		if o.FirstRun {
 			a.showIntro() // one-time getting-started page; esc drops into :ctx
 		}
-	} else {
+	default:
 		a.switchResource(initialResource(o.CurrentView)) // restore the last view
 		if o.FirstRun {
 			// Shown BEFORE the splash: the splash restores the page it covered,
@@ -2006,6 +2030,9 @@ func projectColumns(full, want []string) (names []string, idx []int) {
 }
 
 func (a *App) switchResource(res data.Resource) {
+	if !a.requireContext() {
+		return // no org selected — the data views are gated
+	}
 	if a.page == "table" && res.Key == a.res.Key {
 		return // ':monitors' while on monitors — nothing to do
 	}
