@@ -1,0 +1,111 @@
+name: Hermes AI Review
+
+on:
+  pull_request:
+    types: [opened, reopened, labeled, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  hermes-ai-review:
+    name: Hermes AI Review
+    runs-on: [self-hosted, linux, docker]
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - name: Decide review mode
+        id: mode
+        shell: bash
+        run: |
+          set -euo pipefail
+          action='${{ github.event.action }}'
+          label='${{ github.event.label.name || '' }}'
+          labels='${{ join(github.event.pull_request.labels.*.name, ',') }}'
+          mode=''
+
+          if [[ "$action" == "labeled" ]]; then
+            case "$label" in
+              ai-review|ai-auto|ai-security) mode="$label" ;;
+            esac
+          elif [[ "$action" == "synchronize" && ",$labels," == *",ai-auto,"* ]]; then
+            mode='ai-auto'
+          fi
+
+          if [[ -z "$mode" ]]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Send signed request to Hermes
+        if: steps.mode.outputs.run == 'true'
+        env:
+          HERMES_WEBHOOK_URL: ${{ secrets.HERMES_WEBHOOK_URL }}
+          HERMES_WEBHOOK_SECRET: ${{ secrets.HERMES_WEBHOOK_SECRET }}
+          MODE: ${{ steps.mode.outputs.mode }}
+          ACTION: ${{ github.event.action }}
+          LABEL: ${{ github.event.label.name || '' }}
+          REPOSITORY: ${{ github.repository }}
+          REPOSITORY_ID: ${{ github.repository_id }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          ACTOR: ${{ github.actor }}
+          ACTOR_ID: ${{ github.actor_id }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          RUNNER_NAME: ${{ runner.name }}
+          SERVER_URL: ${{ github.server_url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${HERMES_WEBHOOK_URL:?set HERMES_WEBHOOK_URL secret}"
+          : "${HERMES_WEBHOOK_SECRET:?set HERMES_WEBHOOK_SECRET secret}"
+
+          payload="$RUNNER_TEMP/hermes-ai-review.json"
+          jq -n \
+            --arg event_type 'ai_review_request' \
+            --arg mode "$MODE" \
+            --arg delivery_id "github-actions-${RUN_ID}-${RUN_ATTEMPT}-${REPOSITORY_ID}-${PR_NUMBER}-${MODE}-${PR_HEAD_SHA}" \
+            --arg repository "$REPOSITORY" \
+            --argjson repository_id "$REPOSITORY_ID" \
+            --argjson pr_number "$PR_NUMBER" \
+            --arg pr_title "$PR_TITLE" \
+            --arg pr_author "$PR_AUTHOR" \
+            --arg pr_url "$PR_URL" \
+            --arg pr_head_sha "$PR_HEAD_SHA" \
+            --arg pr_base_ref "$PR_BASE_REF" \
+            --arg actor "$ACTOR" \
+            --argjson actor_id "$ACTOR_ID" \
+            --arg action "$ACTION" \
+            --arg label "$LABEL" \
+            --arg run_id "$RUN_ID" \
+            --arg run_attempt "$RUN_ATTEMPT" \
+            --arg run_url "$SERVER_URL/$REPOSITORY/actions/runs/$RUN_ID" \
+            --arg runner_name "$RUNNER_NAME" \
+            '{
+              event_type: $event_type,
+              mode: $mode,
+              delivery_id: $delivery_id,
+              repository: {full_name: $repository, id: $repository_id},
+              pr: {number: $pr_number, title: $pr_title, author: $pr_author, url: $pr_url, head_sha: $pr_head_sha, base_ref: $pr_base_ref},
+              actor: {login: $actor, id: $actor_id},
+              trigger: {action: $action, label: $label},
+              workflow: {run_id: $run_id, run_attempt: $run_attempt, run_url: $run_url, runner_name: $runner_name}
+            }' > "$payload"
+
+          timestamp="$(date +%s)"
+          signature="$(printf '%s.%s' "$timestamp" "$(cat "$payload")" | openssl dgst -sha256 -hmac "$HERMES_WEBHOOK_SECRET" -hex | awk '{print $2}')"
+
+          curl -fsS \
+            -X POST "$HERMES_WEBHOOK_URL" \
+            -H 'Content-Type: application/json' \
+            -H "X-Webhook-Timestamp: $timestamp" \
+            -H "X-Webhook-Signature-V2: $signature" \
+            -H "X-Request-ID: github-actions-${RUN_ID}-${RUN_ATTEMPT}-${REPOSITORY_ID}-${PR_NUMBER}-${MODE}-${PR_HEAD_SHA}" \
+            --data-binary "@$payload"
