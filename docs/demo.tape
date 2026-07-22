@@ -17,62 +17,89 @@ Type "./ike --demo"
 Enter
 Sleep 3s
 
-# Contexts: the orgs you're connected to (auth type per row), then activate a
-# second org with space — active rows highlight.
-Type ":ctx"
-Enter
-Sleep 2s
-Down
-Sleep 500ms
-Space
-Sleep 2s
-
-# With two orgs active, views merge them: CTX column + per-org rate budgets.
-Type ":monitors"
+# Every command at a glance — the command palette (enter runs one).
+Type ":menu"
 Enter
 Sleep 2500ms
+
+# Contexts: the orgs you're connected to (auth type per row); activate a
+# second org with space — active rows highlight and views start merging.
+Type ":ctx"
+Enter
+Sleep 1500ms
+Down
+Sleep 400ms
+Space
+Sleep 1800ms
 
 # Cross-org triage: open incidents + alerting monitors, worst first.
 Type ":overview"
 Enter
 Sleep 2500ms
 
-# The incident war room: people, impacts, to-dos in one screen.
-Type ":incidents"
+# Bulk actions: mark monitors with space, then mute them all at once.
+Type ":monitors"
+Enter
+Sleep 1500ms
+Space
+Sleep 400ms
+Down
+Space
+Sleep 600ms
+Type "m"
+Sleep 1500ms
+Right
+Enter
+Sleep 2s
+
+# Datadog spend: estimated + projected, trend, anomalies.
+Type ":cost"
+Enter
+Sleep 2500ms
+
+# On-call: who's paged now + the escalation ladder.
+Type ":oncall"
 Enter
 Sleep 1500ms
 Enter
-Sleep 3s
+Sleep 2500ms
 Escape
-Sleep 800ms
+Sleep 600ms
 
-# Logs, then narrow them with a Datadog search query.
+# Security signals (Cloud SIEM) and notebooks (runbooks / postmortems).
+Type ":security"
+Enter
+Sleep 2s
+Type ":notebooks"
+Enter
+Sleep 1500ms
+Enter
+Sleep 2500ms
+Escape
+Sleep 600ms
+
+# The debugging loop: logs, narrowed by a Datadog search query.
 Type ":logs"
 Enter
 Sleep 1500ms
 Type "/"
-Sleep 400ms
+Sleep 300ms
 Ctrl+U
 Type "status:error"
 Enter
-Sleep 2500ms
+Sleep 2s
 
-# The debugging loop: traces -> trace waterfall -> that trace's logs.
-Type ":traces"
+# Watch mode: leave a view refreshing hands-off for a wall display.
+Type ":overview"
 Enter
-Sleep 1500ms
-Type "t"
-Sleep 3s
-Type "l"
+Sleep 1200ms
+Type ":watch"
+Enter
 Sleep 2500ms
-
-# A dashboard rendered as a grid of sparklines.
-Type ":dashboards"
-Enter
-Sleep 1s
-Enter
-Sleep 3s
 
 # Out.
+Type ":watch"
+Enter
+Sleep 500ms
 Type "q"
 Sleep 1s
