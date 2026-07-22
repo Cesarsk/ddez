@@ -100,7 +100,7 @@ jobs:
             }' > "$payload"
 
           timestamp="$(date +%s)"
-          signature="$(printf '%s.%s' "$timestamp" "$(cat "$payload")" | openssl dgst -sha256 -hmac "$HERMES_WEBHOOK_SECRET" -hex | awk '{print $2}')"
+          signature="$( (printf '%s.' "$timestamp"; cat "$payload") | openssl dgst -sha256 -hmac "$HERMES_WEBHOOK_SECRET" -hex | awk '{print $2}')"
 
           curl -fsS \
             -X POST "$HERMES_WEBHOOK_URL" \
