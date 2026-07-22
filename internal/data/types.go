@@ -103,6 +103,15 @@ type OnCallResponder struct {
 	Email  string
 }
 
+// TeamMember is one person's membership of a Datadog team: who they are plus
+// their role in the team (e.g. "admin", "member").
+type TeamMember struct {
+	Name   string
+	Handle string
+	Email  string
+	Role   string
+}
+
 // Resource describes a navigable Datadog resource type.
 type Resource struct {
 	Key         string
@@ -316,6 +325,9 @@ type Provider interface {
 	// a team with no on-call configured, or an org without it enabled, comes
 	// back with empty rotations rather than an error.
 	TeamOnCall(ctx context.Context, teamID string) (*OnCallDetail, error)
+	// TeamMembers lists a team's members and their roles (one bounded call).
+	// Read-only. Drives the :teams drill-in.
+	TeamMembers(ctx context.Context, teamID string) ([]TeamMember, error)
 	// MonitorMetric evaluates a monitor's metric query over a recent window
 	// so the detail view can show the data behind the alert. On-demand.
 	MonitorMetric(ctx context.Context, id string) (*MetricSeries, error)
@@ -430,6 +442,12 @@ func Resources() []Resource {
 			Aliases: []string{"downtimes", "downtime", "dt", "mutes"},
 			Columns: []string{"STATUS", "SCOPE", "MESSAGE", "CREATED"},
 			TTL:     60 * time.Second,
+		},
+		{
+			Key: "teams", Title: "Teams",
+			Aliases: []string{"teams", "team"},
+			Columns: []string{"TEAM", "HANDLE", "MEMBERS", "DESCRIPTION"},
+			TTL:     5 * time.Minute,
 		},
 		{
 			// Teams are the entry point to On-Call: the API has no "list

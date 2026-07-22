@@ -1098,6 +1098,33 @@ func newSim(t *testing.T) tcell.SimulationScreen {
 	return sim
 }
 
+// TestTeamsView: :teams lists teams; enter on a team shows its members with
+// roles. esc returns to the list.
+func TestTeamsView(t *testing.T) {
+	app := newDemoApp(t)
+	sim := newSim(t)
+	app.SetScreen(sim)
+	go func() { _ = app.Run() }()
+
+	waitFor(t, sim, "Monitors(all)")
+	typeCmd(sim, ":teams")
+	waitFor(t, sim, "Teams")
+	waitFor(t, sim, "SRE")
+	waitFor(t, sim, "Reliability") // the description column
+
+	press(sim, tcell.KeyEnter) // first team (SRE): its roster
+	waitFor(t, sim, "members")
+	waitFor(t, sim, "Alice Ng")
+	waitFor(t, sim, "admin") // alice is the SRE admin
+	waitFor(t, sim, "ROLE")
+	press(sim, tcell.KeyEscape)
+	waitFor(t, sim, "Teams")
+
+	press(sim, tcell.KeyEscape)
+	waitFor(t, sim, "Monitors(all)")
+	app.Stop()
+}
+
 // TestOnCallView: :oncall lists teams; enter on a team with a rotation shows
 // who's on call plus the escalation ladder, and a team without on-call shows
 // the empty-state message. esc returns to the list.

@@ -12,13 +12,10 @@ import (
 // (the API has no "list schedules" endpoint). Who is on call is fetched per
 // team on drill-in, so this stays one bounded call.
 func (l *Live) oncallTeams(ctx context.Context) ([]Row, error) {
-	resp, httpresp, err := datadogV2.NewTeamsApi(l.client).ListTeams(ctx,
-		*datadogV2.NewListTeamsOptionalParameters().WithPageSize(100).WithSort(datadogV2.LISTTEAMSSORT_NAME))
-	l.track(httpresp)
+	data, err := l.listTeams(ctx)
 	if err != nil {
-		return nil, apiErr("teams", err)
+		return nil, err
 	}
-	data := resp.GetData()
 	rows := make([]Row, 0, len(data))
 	for _, t := range data {
 		a := t.GetAttributes()
