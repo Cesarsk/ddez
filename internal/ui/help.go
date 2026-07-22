@@ -81,7 +81,7 @@ func (a *App) setHints() {
 			"[aqua]<:>[white]cmd  [aqua]</>[white]filter  [aqua]<enter>[white]details  [aqua]<o>[white]open  [aqua]<c>[white]copy  [aqua]<C>[white]cols",
 			fmt.Sprintf("[aqua]<ctrl-r>[white]refresh  [aqua]<p>[white]auto:%s  [aqua]<esc>[white]back  [aqua]<?>[white]help  [aqua]<q>[white]quit", refresh),
 			"",
-			"[orange]:monitors :incidents :slos :logs :traces :services :events :downtimes :dashboards :ctx :settings",
+			"[orange]:monitors :incidents :slos :logs :traces :cost :oncall :teams …[-]  [aqua]:menu[-] all commands",
 		}
 		switch a.res.Key {
 		case "monitors":
@@ -120,10 +120,12 @@ func (a *App) buildHelp() tview.Primitive {
 	tv.SetBorder(true).SetTitle(" Help ").SetTitleColor(a.theme.Title)
 	fmt.Fprint(tv, a.theme.recolor(`
  [orange]NAVIGATION
+   [aqua]:menu[white]         the full command list (aliases too) — enter runs a command
    [aqua]:<resource>[white]   switch view: monitors incidents slos logs traces services
-                 events rum synthetics downtimes dashboards (aliases: mon inc s l tr svc ev dt d syn)
-                 — :overview (cross-org triage) / :cost (this org's Datadog spend)
-                 / :ctx / :settings
+                 events rum synthetics downtimes dashboards teams oncall
+                 (aliases: mon inc s l tr svc ev dt d syn)
+                 :overview (cross-org triage), :cost (Datadog spend),
+                 :oncall (who's on call + paging), :teams (members), :ctx, :settings
    [aqua]enter[white]         detail — full object on demand; SLO error budget; monitor metric
                  sparkline; on a dashboard its widget grid; on logs/traces a row
    [aqua]esc[white]           go back (navigation history, k9s-style); clears the active filter

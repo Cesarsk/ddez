@@ -24,6 +24,10 @@ func (a *App) openDetail(tableRow int) {
 		a.switchContext(r.ID) // enter on a context switches org, k9s-style
 		return
 	}
+	if a.res.Key == menuResource.Key {
+		a.execCommand(r.ID) // enter on a command runs it (palette behavior)
+		return
+	}
 	if a.res.Key == "dashboards" {
 		a.pushNav()
 		a.detailRow = r
