@@ -183,7 +183,9 @@ func (a *App) buildHelp() tview.Primitive {
                  active with space stay in; anything else drops out
    [aqua]space[white]         toggle an org active — every "active" row merges into the views
                  (CTX column names each row's org); actions on a row always hit
-                 that row's org. The org you're driving shows in the header
+                 that row's org. On the org you're driving, space hands the
+                 driver role to another active org and drops it (refused if it's
+                 your only active org). The org you're driving shows in the header
    [aqua]O[white]             browser sign-in (OAuth) for the selected context — tokens go to the OS
                  keychain and refresh automatically. On an OAuth row it signs in or
                  refreshes; on a key/token row it offers to convert it (asks first)

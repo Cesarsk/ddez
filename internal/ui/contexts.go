@@ -108,35 +108,31 @@ func (a *App) providerFor(r data.Row) *data.Cached {
 // the current context, which stays active implicitly — the flag then only
 // controls whether it survives a current-context switch).
 func (a *App) toggleContextActive(name string) {
+	// space on the org you're driving means "drop it from the set". The driven
+	// org is always a member, so removing it first hands the driver role to
+	// another active org (dropDrivenContext); it can't be toggled like a plain
+	// member.
+	if name == a.current {
+		a.dropDrivenContext(name)
+		return
+	}
 	for i, c := range a.ctxInfos {
 		if c.Name != name {
 			continue
 		}
 		if !c.Active { // activate
-			if name != a.current {
-				p, err := a.opts.Factory(name)
-				if err != nil {
-					a.flash("✗ context "+name+": "+err.Error(), true)
-					return
-				}
-				a.providers[name] = data.NewCached(p)
+			p, err := a.opts.Factory(name)
+			if err != nil {
+				a.flash("✗ context "+name+": "+err.Error(), true)
+				return
 			}
+			a.providers[name] = data.NewCached(p)
 			a.ctxInfos[i].Active = true
-			if name == a.current {
-				a.flash("context "+name+" marked — it will stay active when you switch to another org", false)
-			} else {
-				a.flash("context "+name+" activated — spanning views merge it", false)
-			}
+			a.flash("context "+name+" activated — spanning views merge it", false)
 		} else { // deactivate
 			a.ctxInfos[i].Active = false
-			if name != a.current {
-				delete(a.providers, name) // hard teardown, same boundary as a switch
-				a.flash("context "+name+" deactivated", false)
-			} else {
-				// The driven org can't leave the views — its row stays "active".
-				// Without this message a space here looks like a no-op bug.
-				a.flash("context "+name+" stays active while you're driving it — it drops out when you switch away", false)
-			}
+			delete(a.providers, name) // hard teardown, same boundary as a switch
+			a.flash("context "+name+" deactivated", false)
 		}
 		if a.opts.PersistActive != nil {
 			if err := a.opts.PersistActive(name, a.ctxInfos[i].Active); err != nil {
@@ -146,6 +142,59 @@ func (a *App) toggleContextActive(name string) {
 		a.load(false) // refresh the :ctx table markers
 		return
 	}
+}
+
+// dropDrivenContext removes the org you're currently driving from the active
+// set by handing the driver role to the next active org, then tearing the old
+// one down. Refused when it's the only active org — you must always be driving
+// something. Stays on the :ctx page (a lightweight re-anchor, not a full
+// switchContext that would reset navigation and jump to :monitors).
+func (a *App) dropDrivenContext(name string) {
+	next := a.nextActiveOther(name)
+	if next == "" {
+		a.flash("context "+name+" is your only active org — activate another (space) first", false)
+		return
+	}
+	p, ok := a.providers[next]
+	if !ok {
+		np, err := a.opts.Factory(next)
+		if err != nil {
+			a.flash("✗ context "+next+": "+err.Error(), true)
+			return
+		}
+		p = data.NewCached(np)
+		a.providers[next] = p
+	}
+	a.current = next // hand off the driver role
+	a.provider = p
+	delete(a.providers, name) // drop the old org
+	for i := range a.ctxInfos {
+		switch a.ctxInfos[i].Name {
+		case name:
+			a.ctxInfos[i].Active = false
+		case next:
+			a.ctxInfos[i].Active = true // the new driver is a member
+		}
+	}
+	if a.opts.PersistActive != nil {
+		if err := a.opts.PersistActive(name, false); err != nil {
+			slog.Warn("persist active failed", "context", name, "err", err)
+		}
+	}
+	a.persistSession() // remember the new driven org
+	a.flash("dropped "+name+" — now driving "+next, false)
+	a.load(false)
+}
+
+// nextActiveOther returns the first active org that isn't name, or "" if the
+// given org is the only active one.
+func (a *App) nextActiveOther(name string) string {
+	for _, c := range a.ctxInfos {
+		if c.Name != name && c.Active {
+			return c.Name
+		}
+	}
+	return ""
 }
 
 // switchContext moves the current context. The target keeps its cache if it

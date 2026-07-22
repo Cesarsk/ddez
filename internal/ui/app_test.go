@@ -609,6 +609,44 @@ func TestFormDropdownArrowNav(t *testing.T) {
 	app.Stop()
 }
 
+// TestDropDrivenContext: space on the org you're driving hands the driver role
+// to another active org and drops it; it's refused when that org is your only
+// active one.
+func TestDropDrivenContext(t *testing.T) {
+	app, err := New(Options{
+		Contexts: []ContextInfo{
+			{Name: "dev", Site: "datadoghq.eu", Keys: "built-in"},
+			{Name: "stage", Site: "datadoghq.eu", Keys: "built-in"},
+		},
+		Current: "dev",
+		Factory: func(string) (data.Provider, error) { return data.NewDemo("datadoghq.eu"), nil },
+		Refresh: time.Minute,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sim := newSim(t)
+	app.SetScreen(sim)
+	go func() { _ = app.Run() }()
+
+	waitFor(t, sim, "Monitors(all)")
+	typeCmd(sim, ":ctx")
+	waitFor(t, sim, "Contexts(all)")
+
+	// dev is the driven org (row 1) and the only active one — space is refused.
+	pressRune(sim, ' ')
+	waitFor(t, sim, "only active org")
+
+	// Activate stage (row 2), go back to dev, drop it → driver hands to stage.
+	pressRune(sim, 'j')
+	pressRune(sim, ' ')
+	waitFor(t, sim, "stage activated")
+	pressRune(sim, 'k')
+	pressRune(sim, ' ')
+	waitFor(t, sim, "dropped dev — now driving stage")
+	app.Stop()
+}
+
 // TestFirstRunIntro: FirstRun shows the getting-started page once (after the
 // splash), persists intro-seen exactly once, and :manual reopens it any time.
 func TestFirstRunIntro(t *testing.T) {
