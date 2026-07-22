@@ -53,6 +53,7 @@ internal/ui/
   render.go             table render, row colour, header + rate-limit budget
   writes.go             confirm-gated write paths (mute, incident, downtime)
   cost.go               :cost panel — Datadog spend (trend, anomalies, drill-down)
+  teams.go              :teams drill-in — a team's members + roles
   oncall.go             :oncall drill-in — who's on call now + escalation ladder
   help.go               hints line, help page, first-run getting-started page
   app_test.go           headless end-to-end smoke test (tcell SimulationScreen)
@@ -215,7 +216,14 @@ one-time getting-started page (`:manual`).
    which needs cost-allocation tags configured) are possible later additions
    for orgs that have set them up.
 
-4. **On-Call view — SHIPPED** (`:oncall`): teams from `TeamsApi.ListTeams` as
+4. **Teams view — SHIPPED** (`:teams`): the org's teams from
+   `TeamsApi.ListTeams`, and `enter` on a team fetches
+   `TeamsApi.GetTeamMemberships` to show its members and roles. JSON:API, so
+   memberships carry the role and reference users resolved from `included[]`.
+   Shares the `listTeams` helper with `:oncall` (same list, different
+   drill-in). Read-only, one bounded call per drill-in.
+
+5. **On-Call view — SHIPPED** (`:oncall`): teams from `TeamsApi.ListTeams` as
    the list (the On-Call API has no "list schedules" endpoint), and `enter` on
    a team fetches `OnCallApi.GetTeamOnCallUsers` to show who is on call now
    plus the escalation ladder. The response is JSON:API, so the responders and

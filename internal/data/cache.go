@@ -77,6 +77,11 @@ func (c *Cached) TeamOnCall(ctx context.Context, teamID string) (*OnCallDetail, 
 	return c.p.TeamOnCall(ctx, teamID)
 }
 
+// TeamMembers is an on-demand drill-in fetch, uncached.
+func (c *Cached) TeamMembers(ctx context.Context, teamID string) ([]TeamMember, error) {
+	return c.p.TeamMembers(ctx, teamID)
+}
+
 // MonitorMetric is an on-demand detail fetch, uncached.
 func (c *Cached) MonitorMetric(ctx context.Context, id string) (*MetricSeries, error) {
 	return c.p.MonitorMetric(ctx, id)

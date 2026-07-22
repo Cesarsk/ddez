@@ -38,6 +38,10 @@ func (a *App) openDetail(tableRow int) {
 		a.showTeamOnCall(r) // enter on a team → who's on call + escalation
 		return
 	}
+	if a.res.Key == "teams" {
+		a.showTeamMembers(r) // enter on a team → its members + roles
+		return
+	}
 	a.pushNav()
 	a.renderDetail(r)
 	a.detailRow = r

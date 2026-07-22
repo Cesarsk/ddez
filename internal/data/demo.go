@@ -179,21 +179,61 @@ func (d *Demo) Fetch(_ context.Context, key, query, timeRange string) ([]Row, er
 		return d.synthetics(), nil
 	case "downtimes":
 		return d.downtimes(), nil
+	case "teams":
+		return d.teams(), nil
 	case "oncall":
 		return d.oncallTeams(), nil
 	}
 	return nil, fmt.Errorf("unknown resource %q", key)
 }
 
-// demoTeams backs the :oncall list. "platform" deliberately has no on-call
-// configured, so the drill-in exercises the empty-rotation path.
+// demoTeams backs the :teams and :oncall lists. "platform" deliberately has
+// no on-call configured, so the on-call drill-in exercises the empty path.
 var demoTeams = []struct {
-	id, name, handle string
-	members          int64
+	id, name, handle, desc string
+	members                int64
 }{
-	{"sre", "SRE", "sre", 6},
-	{"payments", "Payments", "payments", 8},
-	{"platform", "Platform", "platform", 5},
+	{"sre", "SRE", "sre", "Reliability, on-call, and platform health", 6},
+	{"payments", "Payments", "payments", "Payments API and settlement", 8},
+	{"platform", "Platform", "platform", "Shared infra and developer tooling", 5},
+}
+
+func (d *Demo) teams() []Row {
+	rows := make([]Row, 0, len(demoTeams))
+	for _, t := range demoTeams {
+		rows = append(rows, Row{
+			ID:    t.id,
+			Cells: []string{t.name, t.handle, strconv.FormatInt(t.members, 10), t.desc},
+			URL:   WebBase(d.site) + "/organization-settings/teams/" + t.handle,
+		})
+	}
+	return rows
+}
+
+// demoTeamMembers is a small per-team roster (handle → role) so the :teams
+// drill-in is demoable offline.
+var demoTeamMembers = map[string][]struct{ handle, role string }{
+	"sre":      {{"alice", "admin"}, {"bob", "member"}, {"carol", "member"}, {"sre.oncall", "member"}},
+	"payments": {{"dave", "admin"}, {"erin", "member"}},
+	"platform": {{"carol", "admin"}, {"dave", "member"}},
+}
+
+// TeamMembers returns a team's demo roster, resolving handles against the
+// shared demo user list for names.
+func (d *Demo) TeamMembers(_ context.Context, teamID string) ([]TeamMember, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	var out []TeamMember
+	for _, m := range demoTeamMembers[teamID] {
+		tm := TeamMember{Handle: m.handle, Role: m.role, Email: m.handle + "@example.com"}
+		for _, u := range demoUsers {
+			if u.Handle == m.handle {
+				tm.Name = u.Name
+			}
+		}
+		out = append(out, tm)
+	}
+	return out, nil
 }
 
 func (d *Demo) oncallTeams() []Row {

@@ -152,6 +152,7 @@ Switch to any view with `:` + its name or a shorter alias.
 | **Synthetics** | `:synthetics` `:syn` | Synthetic tests: live/paused, name, type, locations, tags. `enter` shows the latest results with a pass rate. |
 | **Overview** | `:overview` `:ov` | Cross-resource triage: open incidents + alerting monitors from every active org, worst first. `enter` opens the real detail. |
 | **Cost** | `:cost` `:billing` | This org's Datadog spend: estimated + projected this month, up to 12 months of history with a trend, per-product or per-sub-org, filterable (read-only). Admin-scoped, see below. |
+| **Teams** | `:teams` `:team` | The org's Datadog teams: name, handle, member count, description. `enter` on a team shows its members and their roles (read-only). |
 | **On-Call** | `:oncall` `:oc` `:schedules` | Your teams. `enter` on a team shows who's on call right now and the escalation ladder (read-only). Needs Datadog On-Call, see below. |
 | **Downtimes** | `:downtimes` `:dt` `:mutes` | Scheduled/active monitor mutes: status, scope, message, created. |
 | **Dashboards** | `:dashboards` `:dash` `:d` | Title, layout, author, modified. |
@@ -382,6 +383,20 @@ spend. It comes from Datadog's usage-metering API, which is **admin-scoped**:
 it needs the `usage_read` permission, usually limited to org admins. If your
 key or OAuth user lacks it, `:cost` shows a plain "needs `usage_read`" message
 instead of a raw error, and the rest of ike keeps working.
+
+---
+
+## Teams
+
+`:teams` (or `:team`) lists the org's Datadog teams: name, handle, how many
+members, and the description. Press `enter` on a team to see its members and
+each person's role in that team, with admins highlighted. The panel is
+read-only. `o` opens the team's page in Datadog, `ctrl-r` re-fetches, `esc`
+goes back.
+
+`:teams` and `:oncall` both start from the same team list but drill into
+different things: `:teams` shows who is *in* a team, `:oncall` shows who is
+*on call* for it.
 
 ---
 

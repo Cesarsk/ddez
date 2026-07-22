@@ -43,7 +43,7 @@ flowchart TB
 
 Key property: `Provider` is a single interface spanning **reads** (`Fetch`,
 `FetchDetail`, `Dashboard`, `Trace`, `LogContext`, `Cost`, `TeamOnCall`,
-`MonitorMetric`, `ListUsers`, `IncidentTodos`, `CurrentUser`), **confirm-gated writes** (`SetIncidentField`
+`TeamMembers`, `MonitorMetric`, `ListUsers`, `IncidentTodos`, `CurrentUser`), **confirm-gated writes** (`SetIncidentField`
 for state/severity, `SetIncidentCommander`, `AddIncidentTodo`,
 `SetIncidentTodoCompleted`, `DeleteIncidentTodo`, `SetMonitorMute`,
 `CancelDowntime`) and **status** (`Budget`, `Mode`, `Site`). Three
