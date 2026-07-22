@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadog"
@@ -164,10 +165,37 @@ func (l *Live) teamStepDelays(ctx context.Context, teamID string) []int {
 	return out
 }
 
+// oncallPagingHost maps a Datadog site to its On-Call paging "cell" host. The
+// paging endpoints do not live on api.<site>; each region routes to a
+// dedicated cell. EU has exactly one (beige); US1 defaults to navy. Other US
+// cells (lava/saffron/coral/teal) exist but can't be derived from the site
+// alone, so US paging is best-effort against the default cell.
+func oncallPagingHost(site string) string {
+	if strings.Contains(site, ".eu") {
+		return "beige.oncall.datadoghq.eu"
+	}
+	return "navy.oncall.datadoghq.com"
+}
+
+// pagingCtx is authCtx plus the On-Call paging server host. The paging
+// operations validate the server URL's site variable against an On-Call cell
+// allowlist, so the normal site (datadoghq.eu, ...) is invalid there and must
+// be overridden per operation.
+func (l *Live) pagingCtx(ctx context.Context) context.Context {
+	ctx = l.authCtx(ctx)
+	vars := map[string]string{"site": oncallPagingHost(l.site)}
+	return context.WithValue(ctx, datadog.ContextOperationServerVariables, map[string]map[string]string{
+		"v2.OnCallPagingApi.CreateOnCallPage":      vars,
+		"v2.OnCallPagingApi.AcknowledgeOnCallPage": vars,
+		"v2.OnCallPagingApi.EscalateOnCallPage":    vars,
+		"v2.OnCallPagingApi.ResolveOnCallPage":     vars,
+	})
+}
+
 // PageTeam raises an On-Call page against a team. urgency is "high" or "low"
 // (anything else defaults to low). Returns the new page's id.
 func (l *Live) PageTeam(ctx context.Context, teamID, title, urgency, description string) (string, error) {
-	ctx = l.authCtx(ctx)
+	ctx = l.pagingCtx(ctx)
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
@@ -215,7 +243,7 @@ func (l *Live) ResolvePage(ctx context.Context, pageID string) error {
 
 // pageLifecycle runs an acknowledge/escalate/resolve action on a page.
 func (l *Live) pageLifecycle(ctx context.Context, pageID, action string) error {
-	ctx = l.authCtx(ctx)
+	ctx = l.pagingCtx(ctx)
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	id, err := uuid.Parse(pageID)

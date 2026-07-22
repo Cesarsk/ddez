@@ -106,3 +106,16 @@ func TestIncidentFieldUnion(t *testing.T) {
 		t.Errorf("missing field = %q, want empty", got)
 	}
 }
+
+func TestOncallPagingHost(t *testing.T) {
+	cases := map[string]string{
+		"datadoghq.eu":      "beige.oncall.datadoghq.eu",
+		"datadoghq.com":     "navy.oncall.datadoghq.com",
+		"us3.datadoghq.com": "navy.oncall.datadoghq.com",
+	}
+	for site, want := range cases {
+		if got := oncallPagingHost(site); got != want {
+			t.Errorf("oncallPagingHost(%q) = %q, want %q", site, got, want)
+		}
+	}
+}
