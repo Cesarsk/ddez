@@ -43,6 +43,9 @@ func (e *Errored) TeamMembers(context.Context, string) ([]TeamMember, error) {
 func (e *Errored) Notebook(context.Context, string) (*NotebookView, error) {
 	return nil, e.err
 }
+func (e *Errored) SetHostMute(context.Context, string, bool) error {
+	return e.err
+}
 func (e *Errored) PageTeam(context.Context, string, string, string, string) (string, error) {
 	return "", e.err
 }

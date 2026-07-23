@@ -112,6 +112,8 @@ func (a *App) setHints() {
 			lines = append(lines, "[gray]</>signals query  <enter>detail  <s>sort   (Cloud SIEM / CSM · last 24h)")
 		case "notebooks":
 			lines = append(lines, "[gray]<enter>read the notebook  <s>sort <S>reverse   (runbooks, postmortems)")
+		case "hosts":
+			lines = append(lines, "[gray]<m>mute/unmute host  <o>open  <s>sort <S>reverse   (down/muted first)")
 		case overviewResource.Key:
 			lines = append(lines, "[gray]<enter>detail  open incidents + alerting monitors across every active org")
 		case ctxResource.Key:
@@ -130,7 +132,7 @@ func (a *App) buildHelp() tview.Primitive {
  [orange]NAVIGATION
    [aqua]:menu[white]         the full command list (aliases too) — enter runs a command
    [aqua]:<resource>[white]   switch view: monitors incidents slos logs traces services
-                 events rum synthetics downtimes dashboards teams oncall
+                 events rum synthetics downtimes dashboards hosts teams oncall
                  (aliases: mon inc s l tr svc ev dt d syn)
                  :overview (cross-org triage), :cost (Datadog spend),
                  :oncall (who's on call + paging), :teams (members), :ctx, :settings
@@ -165,6 +167,7 @@ func (a *App) buildHelp() tview.Primitive {
                  marked at once behind one confirm (mute monitors, resolve
                  incidents, cancel downtimes). esc clears the selection
    [aqua]m[white]             (monitor) mute / unmute — behind a confirmation
+                 (host) mute / unmute the selected host — behind a confirmation
    [aqua]r[white]             (incident) change state (active/stable/resolved) — behind a confirm
    [aqua]v[white]             (incident) change severity (SEV-1…SEV-5) — behind a confirm
    [aqua]I[white]             (incident) assign commander — searchable user picker (you pinned

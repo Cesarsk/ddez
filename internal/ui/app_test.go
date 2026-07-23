@@ -1217,6 +1217,29 @@ func TestBulkActions(t *testing.T) {
 	app.Stop()
 }
 
+// TestHostsView: :hosts lists infrastructure (down first) and m mutes the
+// selected host, which reloads with the muted status.
+func TestHostsView(t *testing.T) {
+	app := newDemoApp(t)
+	sim := newSim(t)
+	app.SetScreen(sim)
+	go func() { _ = app.Run() }()
+
+	waitFor(t, sim, "Monitors(all)")
+	typeCmd(sim, ":hosts")
+	waitFor(t, sim, "Hosts(")
+	waitFor(t, sim, "down") // the down host sorts to the top
+
+	// Move off the down host (row 1) to an up host, then mute it.
+	pressRune(sim, 'j')
+	pressRune(sim, 'm')
+	waitFor(t, sim, "Mute host")
+	press(sim, tcell.KeyRight) // Cancel → Mute
+	press(sim, tcell.KeyEnter)
+	waitFor(t, sim, "muted")
+	app.Stop()
+}
+
 // TestWatchMode: :watch toggles hands-off refresh; the header shows a WATCH
 // badge while on and clears when toggled off.
 func TestWatchMode(t *testing.T) {
@@ -1245,9 +1268,16 @@ func TestMenuView(t *testing.T) {
 	waitFor(t, sim, "Monitors(all)")
 	typeCmd(sim, ":menu")
 	waitFor(t, sim, "Menu")
-	waitFor(t, sim, ":monitors") // a resource command
-	waitFor(t, sim, ":oncall")   // a newer view is present (registry-driven)
-	waitFor(t, sim, ":cost")     // a pseudo-command
+	waitFor(t, sim, ":monitors") // a resource command near the top
+
+	// Filter brings any command into view regardless of list length: a newer
+	// resource and a pseudo-command both show up.
+	typeRunes(sim, "/oncall")
+	waitForMatch(t, sim, `:oncall`)
+	press(sim, tcell.KeyEscape) // clear the filter
+	typeRunes(sim, "/cost")
+	waitForMatch(t, sim, `:cost`) // a pseudo-command
+	press(sim, tcell.KeyEscape)
 
 	// Filter to a command and run it with enter (palette behavior).
 	typeRunes(sim, "/incidents")

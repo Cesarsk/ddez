@@ -27,6 +27,7 @@ type Demo struct {
 	incSev   map[string]string // incident id → severity, mutated by SetIncidentField
 	dtGone   map[string]bool   // downtime id → cancelled, mutated by CancelDowntime
 	incTodos map[string][]Todo // incident id → to-dos, mutated by the to-do panel
+	hostMute map[string]bool   // host name → muted, mutated by SetHostMute
 }
 
 type demoMonitor struct {
@@ -187,6 +188,8 @@ func (d *Demo) Fetch(_ context.Context, key, query, timeRange string) ([]Row, er
 		return d.securitySignals(query), nil
 	case "notebooks":
 		return d.notebooks(), nil
+	case "hosts":
+		return d.hosts(), nil
 	}
 	return nil, fmt.Errorf("unknown resource %q", key)
 }
@@ -246,6 +249,56 @@ func (d *Demo) notebooks() []Row {
 		})
 	}
 	return rows
+}
+
+// demoHosts backs the :hosts view; muted state is overlaid from d.hostMute.
+var demoHosts = []struct {
+	name, status, apps, cpu, tags string
+}{
+	{"ip-10-0-1-14.eks-prod", "down", "system,docker,kubernetes", "", "team:sre,env:prod,role:eks-node"},
+	{"ip-10-0-2-31.eks-prod", "up", "system,docker,kubernetes", "78%", "team:sre,env:prod,role:eks-node"},
+	{"ip-10-0-2-9.eks-prod", "up", "system,docker,kubernetes", "44%", "team:sre,env:prod,role:eks-node"},
+	{"rds-payments-prod", "up", "system,postgres", "61%", "team:payments,env:prod,role:rds"},
+	{"kong-dp-1.prod", "up", "system,docker,kong", "52%", "team:sre,env:prod,role:kong"},
+	{"kafka-3.platform", "up", "system,kafka", "83%", "team:platform,env:prod,role:kafka"},
+	{"ip-10-1-4-7.eks-stage", "up", "system,docker,kubernetes", "22%", "team:sre,env:stage,role:eks-node"},
+	{"vault-2.prod", "up", "system,vault", "17%", "team:sre,env:prod,role:vault"},
+	{"redis-1.prod", "up", "system,redis", "39%", "team:sre,env:prod,role:redis"},
+	{"bastion.mgmt", "up", "system", "5%", "team:sre,env:mgmt,role:bastion"},
+}
+
+// hosts runs under Fetch's lock (do not re-lock d.mu — it isn't reentrant).
+func (d *Demo) hosts() []Row {
+	rows := make([]Row, 0, len(demoHosts))
+	for _, h := range demoHosts {
+		status := h.status
+		muted := d.hostMute[h.name] // demo default: none muted until you mute one
+		if muted && status != "down" {
+			status = "muted"
+		}
+		last := "just now"
+		if h.status == "down" {
+			last = "6m"
+		}
+		rows = append(rows, Row{
+			ID:    h.name,
+			Cells: []string{h.name, status, h.apps, h.cpu, last, h.tags},
+			Raw:   map[string]any{"muted": muted, "up": h.status != "down"},
+			URL:   WebBase(d.site) + "/infrastructure?host=" + h.name,
+		})
+	}
+	return rows
+}
+
+// SetHostMute toggles a demo host's muted flag so the change survives a reload.
+func (d *Demo) SetHostMute(_ context.Context, host string, mute bool) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.hostMute == nil {
+		d.hostMute = map[string]bool{}
+	}
+	d.hostMute[host] = mute
+	return nil
 }
 
 // Notebook returns a demo notebook's rendered body.

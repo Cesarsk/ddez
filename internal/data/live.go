@@ -175,6 +175,8 @@ func (l *Live) Fetch(ctx context.Context, key, query, timeRange string) ([]Row, 
 		return l.securitySignals(ctx, query, timeRange)
 	case "notebooks":
 		return l.notebooks(ctx)
+	case "hosts":
+		return l.hosts(ctx)
 	}
 	return nil, fmt.Errorf("unknown resource %q", key)
 }

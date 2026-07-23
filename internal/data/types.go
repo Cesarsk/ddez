@@ -351,6 +351,8 @@ type Provider interface {
 	// Notebook fetches one notebook and renders its cells to a readable body
 	// (one bounded call). Read-only. Drives the :notebooks drill-in.
 	Notebook(ctx context.Context, id string) (*NotebookView, error)
+	// SetHostMute mutes or unmutes a host by name, behind a confirmation.
+	SetHostMute(ctx context.Context, host string, mute bool) error
 	// PageTeam raises an On-Call page against a team (urgency "high"/"low").
 	// A write — the UI gates it behind a confirm and fakes it in demo mode.
 	// Returns the new page's id, used for the acknowledge/escalate/resolve
@@ -486,6 +488,16 @@ func Resources() []Resource {
 			TTL:     60 * time.Second, ServerQuery: true, DefaultQuery: "*",
 			EmptyHint: "No security signals in the last 24h. Cloud SIEM / CSM may not be " +
 				"enabled for this org, or nothing matched the query.",
+		},
+		{
+			// Infrastructure host list — the k9s-style inventory. Down/muted
+			// hosts sort first (see hosts loader); m mutes/unmutes.
+			Key: "hosts", Title: "Hosts",
+			Aliases: []string{"hosts", "host", "infra"},
+			Columns: []string{"HOST", "STATUS", "APPS", "CPU", "LAST", "TAGS"},
+			TTL:     60 * time.Second,
+			EmptyHint: "No hosts reporting. The Datadog agent may not be installed, or " +
+				"this org has no infrastructure hosts.",
 		},
 		{
 			Key: "notebooks", Title: "Notebooks",

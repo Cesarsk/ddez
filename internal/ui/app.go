@@ -1213,6 +1213,12 @@ func (a *App) keys(ev *tcell.EventKey) *tcell.EventKey {
 			}
 			return nil
 		}
+		if a.res.Key == "hosts" {
+			if row, ok := a.selectedRow(); ok {
+				a.confirmMuteHost(row)
+			}
+			return nil
+		}
 	case 'p':
 		a.toggleAutoRefresh()
 		return nil

@@ -87,6 +87,16 @@ func (c *Cached) Notebook(ctx context.Context, id string) (*NotebookView, error)
 	return c.p.Notebook(ctx, id)
 }
 
+// SetHostMute writes through and drops the hosts cache so the next load shows
+// the new mute state.
+func (c *Cached) SetHostMute(ctx context.Context, host string, mute bool) error {
+	if err := c.p.SetHostMute(ctx, host, mute); err != nil {
+		return err
+	}
+	c.dropResource("hosts")
+	return nil
+}
+
 // Paging passes straight through (writes are never cached); the affected
 // resource, if any, is invalidated by the caller.
 func (c *Cached) PageTeam(ctx context.Context, teamID, title, urgency, description string) (string, error) {

@@ -150,6 +150,7 @@ Switch to any view with `:` + its name or a shorter alias.
 | **Events** | `:events` `:ev` | The change stream: deploys, alerts, config changes. |
 | **RUM** | `:rum` `:browser` | Browser/mobile events: views, actions, errors, sessions. `/` is a RUM search query (`@type:error`); digit keys set the window. |
 | **Synthetics** | `:synthetics` `:syn` | Synthetic tests: live/paused, name, type, locations, tags. `enter` shows the latest results with a pass rate. |
+| **Hosts** | `:hosts` `:infra` | Infrastructure host inventory, problems first (down, then muted, then up): status, reporting integrations, CPU, last-report age, tags. `m` mutes/unmutes a host; `o` opens it in Datadog. |
 | **Security** | `:security` `:signals` `:siem` | Cloud SIEM / CSM security signals over the last 24h: time, severity, title, tags. `/` is a signals search query. `enter` opens the signal. |
 | **Notebooks** | `:notebooks` `:nb` `:runbooks` | The org's notebooks (runbooks, postmortems): name, author, status, last modified. `enter` reads the notebook's text. |
 | **Overview** | `:overview` `:ov` | Cross-resource triage: open incidents + alerting monitors from every active org, worst first. `enter` opens the real detail. |
@@ -483,6 +484,7 @@ either way.
 | `I` | Incidents | assign commander (user picker; you pinned on top) |
 | `T` | Incidents | to-do panel (list · `a` add · `c` done · `d` delete) |
 | `m` | Monitors | mute / unmute (bulk when rows are marked) |
+| `m` | Hosts | mute / unmute the selected host |
 | `x` | Downtimes | cancel downtime (bulk when rows are marked) |
 | `space` | Monitors/Incidents/Downtimes | mark row for a bulk action |
 | `↑` `↓` | `/` prompt | query history |
