@@ -115,6 +115,39 @@ func (a *App) bulkCancelDowntimes() {
 	})
 }
 
+// confirmMuteHost asks before muting/unmuting the selected host. Mute state
+// comes from Row.Raw["muted"] (the host list carries it).
+func (a *App) confirmMuteHost(r data.Row) {
+	raw, _ := r.Raw.(map[string]any)
+	muted, _ := raw["muted"].(bool)
+	verb := "Mute"
+	if muted {
+		verb = "Unmute"
+	}
+	a.showConfirm(
+		fmt.Sprintf("%s host in [%s]?\n\n%s\n\nMuting stops this host's monitor notifications; the host keeps reporting.",
+			verb, a.current, r.ID),
+		[]string{"Cancel", verb},
+		func(label string) {
+			if label != verb {
+				return
+			}
+			go func() {
+				err := a.providerFor(r).SetHostMute(context.Background(), r.ID, !muted)
+				a.QueueUpdateDraw(func() {
+					if err != nil {
+						a.flash("✗ "+err.Error(), true)
+						return
+					}
+					a.flash(verb+"d "+r.ID, false)
+					if a.res.Key == "hosts" && a.page == "table" {
+						a.load(true)
+					}
+				})
+			}()
+		})
+}
+
 func (a *App) closeConfirm() {
 	a.content.HidePage("confirm")
 	ret := a.confirmReturn

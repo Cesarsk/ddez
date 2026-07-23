@@ -256,6 +256,14 @@ one-time getting-started page (`:manual`).
    kinds noted as placeholders. Read-only; a nice home for runbooks and
    postmortems next to the incident war room.
 
+8. **Hosts view — SHIPPED** (`:hosts`): infrastructure inventory via the v1
+   `HostsApi.ListHosts`, sorted problems-first (down → muted → up, then name) —
+   the k9s-style host list that a Datadog TUI was missing. `m` mutes/unmutes a
+   host (`MuteHost`/`UnmuteHost`, confirm-gated). Read-mostly. Next identity
+   gaps from the API sweep: `:containers` (v2 `containers`, the pod parallel)
+   and `:errors` (v2 `error_tracking`); then the correlation layer
+   (alert→owner→page, service-health rollup).
+
 ### Longer-term
 
 3. **Token rotation** on an existing context — folds into `ike auth login
